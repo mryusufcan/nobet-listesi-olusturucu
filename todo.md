@@ -44,3 +44,4 @@
 - [x] Haftalık çizelge bloklarını Pazartesi başlangıcına göre düzenleme.
 - [x] Sabah, akşam ve gece vardiyalarına ayırt edici ve erişilebilir tema uygulama.
 - [x] Yeni özel gün, hafta başlangıcı ve tema davranışlarını test edip kontrol noktası oluşturma.
+- [x] Pazar gününde kullanılmayan cihaz ve ikinci akşam vardiyası hücrelerindeki açıklama metinlerini kaldırma.
