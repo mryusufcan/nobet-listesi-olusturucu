@@ -173,6 +173,7 @@ export function generateSchedule(input: {
   const weeklyCounts = new Map<string, Map<number, number>>();
   const days: ScheduleDay[] = [];
   const specialDayByDate = new Map((input.specialDays ?? []).map(item => [item.date, item]));
+  const recurringAssignments = new Map<string, number>();
   const dayCount = new Date(Date.UTC(input.year, input.month, 0)).getUTCDate();
   let priorNight: number | null = null;
   let priorEvening = new Set<number>();
@@ -206,41 +207,45 @@ export function generateSchedule(input: {
         return true;
       });
 
-    const score = (item: StaffForSchedule, shift: "morning" | "evening" | "night") => {
+    const score = (item: StaffForSchedule, shift: "morning" | "evening" | "night", equipment?: Equipment) => {
       const past = staffCount(item);
       const current = liveCounts.get(item.id) ?? zeroCounts();
       const baseline = past.total + current.total;
       const specific = past[shift] + current[shift];
       const week = weekly.get(item.id) ?? 0;
-      return baseline * 100 + specific * 24 + week * 7 + item.name.localeCompare("", "tr");
+      const rotationKey = `${item.id}:${weekday}:${shift}:${equipment ?? "genel"}`;
+      const repetition = recurringAssignments.get(rotationKey) ?? 0;
+      return baseline * 100 + specific * 24 + week * 7 + repetition * 340 + item.name.localeCompare("", "tr");
     };
 
-    const assign = (person: StaffForSchedule, shift: "morning" | "evening" | "night") => {
+    const assign = (person: StaffForSchedule, shift: "morning" | "evening" | "night", equipment?: Equipment) => {
       assigned.add(person.id);
       addCount(liveCounts, person.id, shift);
       weekly.set(person.id, (weekly.get(person.id) ?? 0) + 1);
+      const rotationKey = `${person.id}:${weekday}:${shift}:${equipment ?? "genel"}`;
+      recurringAssignments.set(rotationKey, (recurringAssignments.get(rotationKey) ?? 0) + 1);
     };
 
     const morningTarget = specialDay?.morningSlots ?? (weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots);
     let morningAssigned = 0;
-    const registerLocked = (id: number | null, shift: "morning" | "evening" | "night") => {
+    const registerLocked = (id: number | null, shift: "morning" | "evening" | "night", equipment?: Equipment) => {
       if (!id) return;
       const person = staff.find(item => item.id === id);
       if (!person) { issues.push({ level: "error", date, message: "Elle atanmış personel aktif kadroda bulunamadı." }); return; }
-      assign(person, shift);
+      assign(person, shift, equipment);
       if (shift === "morning") morningAssigned += 1;
     };
-    MORNING_EQUIPMENT.forEach(equipment => registerLocked(day.morning[equipment], "morning"));
+    MORNING_EQUIPMENT.forEach(equipment => registerLocked(day.morning[equipment], "morning", equipment));
     day.evening.forEach(id => registerLocked(id, "evening"));
     registerLocked(day.night, "night");
     const devicesByScarcity = [...MORNING_EQUIPMENT].sort((a, b) => availableFor("morning", a).length - availableFor("morning", b).length);
     if (morningTarget === 1 && morningAssigned === 0) {
-      const chosen = availableFor("morning", "MR").sort((a, b) => score(a, "morning") - score(b, "morning"))[0];
+      const chosen = availableFor("morning", "MR").sort((a, b) => score(a, "morning", "MR") - score(b, "morning", "MR"))[0];
       if (!chosen) {
         issues.push({ level: "error", date, message: "Tek kişilik sabah şablonu için uygun personel bulunamadı." });
       } else {
         day.morning.MR = chosen.id;
-        assign(chosen, "morning");
+        assign(chosen, "morning", "MR");
         morningAssigned = 1;
       }
     }
@@ -249,9 +254,9 @@ export function generateSchedule(input: {
         .map(equipment => ({ equipment, people: availableFor("morning", equipment).filter(item => item.gender === "female") }))
         .find(item => item.people.length > 0);
       if (femalePair) {
-        const chosen = femalePair.people.sort((a, b) => score(a, "morning") - score(b, "morning"))[0];
+        const chosen = femalePair.people.sort((a, b) => score(a, "morning", femalePair.equipment) - score(b, "morning", femalePair.equipment))[0];
         day.morning[femalePair.equipment] = chosen.id;
-        assign(chosen, "morning");
+        assign(chosen, "morning", femalePair.equipment);
         morningAssigned += 1;
       } else {
         issues.push({ level: "warning", date, message: "Sabah vardiyası için uygun kadın personel bulunamadı." });
@@ -260,10 +265,10 @@ export function generateSchedule(input: {
 
     for (const equipment of devicesByScarcity) {
       if (morningAssigned >= morningTarget || day.morning[equipment]) continue;
-      const chosen = availableFor("morning", equipment).sort((a, b) => score(a, "morning") - score(b, "morning"))[0];
+      const chosen = availableFor("morning", equipment).sort((a, b) => score(a, "morning", equipment) - score(b, "morning", equipment))[0];
       if (!chosen) continue;
       day.morning[equipment] = chosen.id;
-      assign(chosen, "morning");
+      assign(chosen, "morning", equipment);
       morningAssigned += 1;
     }
     if (morningAssigned !== morningTarget) {
@@ -355,7 +360,7 @@ export function validateSchedule(
     MORNING_EQUIPMENT.forEach(equipment => {
       const id = day.morning[equipment];
       const person = id ? byId.get(id) : undefined;
-      if (person && equipment === "RÖNT-MAMO" && person.gender !== "female") issues.push({ level: "error", date: day.date, message: `${person.name} erkek olduğu için Mamografi cihazına atanamaz.` });
+      if (person && equipment === "RÖNT-MAMO" && person.gender !== "female") issues.push({ level: "error", date: day.date, message: `${person.name}, Mamografi cihazına yalnızca kadın personel atanabildiği için görevlendirilemez.` });
       else if (person && !person.competencies.includes(equipment)) issues.push({ level: "error", date: day.date, message: `${person.name}, ${equipment} cihazında yetkin değil.` });
       else if (person && !allowsEquipment(person, equipment)) issues.push({ level: "error", date: day.date, message: `${person.name} için ${equipment} cihazı özel kısıtla kapatılmış.` });
       if (person && !allowsShift(person, "morning", day.date)) {

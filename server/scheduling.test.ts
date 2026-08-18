@@ -45,6 +45,12 @@ describe("nöbet algoritması", () => {
     });
   });
 
+  it("haftalar arasında aynı gün ve cihaz için personel rotasyonu uygular", () => {
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
+    const mondayMamoStaff = plan.days.filter(day => day.weekday === 1).map(day => day.morning["RÖNT-MAMO"]);
+    expect(new Set(mondayMamoStaff).size).toBeGreaterThan(1);
+  });
+
   it("aynı personelin aynı gün birden fazla vardiyaya yazılmasını hata olarak bildirir", () => {
     const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
     plan.days[0].evening[0] = plan.days[0].morning.MR;
@@ -56,7 +62,7 @@ describe("nöbet algoritması", () => {
     const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
     plan.days[0].morning["RÖNT-MAMO"] = 6;
     const issues = validateSchedule(plan, people, []);
-    expect(issues.some(issue => issue.level === "error" && issue.message.includes("Mamografi cihazına atanamaz"))).toBe(true);
+    expect(issues.some(issue => issue.level === "error" && issue.message.includes("yalnızca kadın personel"))).toBe(true);
   });
 
   it("kişiye özel engellenen vardiya kısıtını uygular", () => {

@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { BarChart3, CalendarDays, CalendarHeart, SlidersHorizontal } from "lucide-react";
+import { BarChart3, CalendarDays, CalendarHeart, Settings2, SlidersHorizontal } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
 const links = [
@@ -8,6 +8,7 @@ const links = [
   { href: "/kisitlar", label: "Kısıtlar", icon: SlidersHorizontal },
   { href: "/ozel-gunler", label: "Özel günler", icon: CalendarHeart },
   { href: "/denge-raporu", label: "Denge raporu", icon: BarChart3 },
+  { href: "/yonetim", label: "Yönetim", icon: Settings2 },
 ];
 
 export function AppTopbar() {

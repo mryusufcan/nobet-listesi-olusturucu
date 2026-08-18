@@ -51,3 +51,8 @@
 - [x] Kullanıcının elle yaptığı vardiya atamalarını sabitleyip yalnızca boş hücreleri kural uyumlu biçimde otomatik doldurma.
 - [x] Manuel atamaları koruyan otomatik tamamlama işlemi için arayüz, algoritma ve test ekleme.
 - [x] Manuel atamaları koruyan otomatik tamamlama işlemi için arayüz, algoritma ve test ekleme.
+- [x] Mamografi atama ihlallerini yetkinlik yerine cinsiyet kuralını açıkça belirten notlarla gösterme.
+- [x] Haftalar arasında aynı kişi-cihaz-gün eşleşmesini azaltan rotasyon puanlamasını atama algoritmasına ekleme.
+- [x] Mamografi notu ve haftalık rotasyon davranışlarını birim testleriyle doğrulama.
+- [x] Personel havuzu, sabit planlama kuralları ve planlama durumu bölümlerini ayrı bir yönetim sekmesine taşıma.
+- [x] Yeni yönetim sekmesine erişim ve taşınan personel/izin işlemlerini doğrulama.

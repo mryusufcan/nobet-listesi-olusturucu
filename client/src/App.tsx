@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Constraints from "./pages/Constraints";
 import BalanceReport from "./pages/BalanceReport";
 import SpecialDays from "./pages/SpecialDays";
+import Management from "./pages/Management";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -17,6 +18,7 @@ function Router() {
       <Route path={"/kisitlar"} component={Constraints} />
       <Route path={"/denge-raporu"} component={BalanceReport} />
       <Route path={"/ozel-gunler"} component={SpecialDays} />
+      <Route path={"/yonetim"} component={Management} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

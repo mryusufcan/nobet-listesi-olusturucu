@@ -93,3 +93,8 @@
   body { @apply bg-background text-foreground antialiased; font-family: "Manrope", ui-sans-serif, system-ui, sans-serif; }
   button, input, select, textarea { font: inherit; }
 }
+
+[data-page="planning"] main > section.grid.gap-5 > aside,
+[data-page="planning"] main > section.grid.gap-5 > div > :first-child {
+  display: none;
+}
