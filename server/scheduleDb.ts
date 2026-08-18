@@ -1,5 +1,5 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
-import { schedules, specialDays, staff, staffConstraints, unavailabilities } from "../drizzle/schema";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { schedules, scheduleVersions, specialDays, staff, staffConstraints, unavailabilities } from "../drizzle/schema";
 import type { ConstraintRule, Equipment, Gender, PersonalConstraint, SchedulePlan, SpecialDayTemplate, StaffForSchedule } from "../shared/scheduling";
 import { getDb } from "./db";
 
@@ -182,6 +182,21 @@ export async function listScheduleHistory(userId: number) {
   return rows.map(row => ({ ...row, plan: JSON.parse(row.plan) as SchedulePlan }));
 }
 
+export async function listScheduleVersions(userId: number, year: number, month: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const rows = await db.select().from(scheduleVersions).where(and(eq(scheduleVersions.userId, userId), eq(scheduleVersions.year, year), eq(scheduleVersions.month, month))).orderBy(desc(scheduleVersions.createdAt));
+  return rows.map(row => ({ ...row, plan: JSON.parse(row.plan) as SchedulePlan, validation: JSON.parse(row.validation) }));
+}
+
+export async function restoreScheduleVersion(userId: number, versionId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const rows = await db.select().from(scheduleVersions).where(and(eq(scheduleVersions.id, versionId), eq(scheduleVersions.userId, userId))).limit(1);
+  if (!rows[0]) throw new Error("Geri yüklenecek çizelge sürümü bulunamadı.");
+  return saveSchedule(userId, JSON.parse(rows[0].plan) as SchedulePlan);
+}
+
 export async function saveSchedule(userId: number, plan: SchedulePlan) {
   const db = await getDb();
   if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
@@ -190,6 +205,11 @@ export async function saveSchedule(userId: number, plan: SchedulePlan) {
     plan: JSON.stringify(plan),
     validation: JSON.stringify(plan.issues),
   };
+  const existing = await db.select().from(schedules).where(and(eq(schedules.userId, userId), eq(schedules.year, plan.year), eq(schedules.month, plan.month))).limit(1);
+  if (existing[0]) {
+    const current = existing[0];
+    await db.insert(scheduleVersions).values({ userId, scheduleId: current.id, year: current.year, month: current.month, name: current.name, plan: current.plan, validation: current.validation });
+  }
   await db.insert(schedules).values({ userId, year: plan.year, month: plan.month, ...values }).onDuplicateKeyUpdate({ set: values });
   return getSchedule(userId, plan.year, plan.month);
 }

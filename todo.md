@@ -61,3 +61,8 @@
 - [x] Liste oluştur komutunun mevcut kaydı değiştirmeden yeni bir çizelge taslağı üretmesini sağlama.
 - [x] Kaydetme işlemini yalnızca kullanıcının açık kaydetme eyleminde kalıcılaştırma ve doğrulama notlarını görünür tutma.
 - [x] Yeni taslak üretme ve kaydetme akışlarını test edip kontrol noktası oluşturma.
+- [x] Çizelge araç çubuğunda görünür taslak durumu ve açık kaydetme/yeni taslak denetimleri ekleme.
+- [x] Sayfadan ayrılma veya dönem değiştirme öncesinde kaydedilmemiş taslak uyarısı ekleme.
+- [x] Çizelge sürümlerini saklayacak veri modeli ve geçmiş listeleme prosedürü ekleme.
+- [x] Sürüm geçmişinden liste seçme ve seçilen eski sürümü geri yükleme arayüzünü ekleme.
+- [x] Taslak uyarısı ve sürüm geçmişi davranışlarını test edip kontrol noktası oluşturma.

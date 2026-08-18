@@ -15,6 +15,8 @@ import { ScheduleTable } from "@/components/ScheduleTable";
 import { PdfShareControls } from "@/components/PdfShareControls";
 import { PageShortcuts } from "@/components/PageShortcuts";
 import { ManualCompleteButton } from "@/components/ManualCompleteButton";
+import { DraftActions } from "@/components/DraftActions";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { parseScheduleWorkbook, type ImportedStaff } from "@/lib/excelImport";
 import { EQUIPMENT, FIXED_RULES, planStatistics, type SchedulePlan } from "../../../shared/scheduling";
 
@@ -25,12 +27,25 @@ const periodLabel = (year: number, month: number) => `${months[month - 1]} ${yea
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const utils = trpc.useUtils();
-  const [year, setYear] = useState(current.getFullYear());
-  const [month, setMonth] = useState(current.getMonth() + 1);
+  const [year, setYearState] = useState(current.getFullYear());
+  const [month, setMonthState] = useState(current.getMonth() + 1);
   const period = useMemo(() => ({ year, month }), [year, month]);
   const [staffDialog, setStaffDialog] = useState(false);
   const [staffForm, setStaffForm] = useState<StaffForm>(blankStaffForm());
-  const [plan, setPlan] = useState<SchedulePlan | null>(null);
+  const [plan, setPlanState] = useState<SchedulePlan | null>(null);
+  const cancelledPeriodChange = useRef(false);
+  const confirmDraftDiscard = () => {
+    if (!plan) return true;
+    const confirmed = window.confirm("Kaydedilmemiş bir taslak var. Bu döneme geçerseniz taslak kaybolacak. Devam edilsin mi?");
+    if (!confirmed) cancelledPeriodChange.current = true;
+    return confirmed;
+  };
+  const setYear = (nextYear: number) => { if (confirmDraftDiscard()) setYearState(nextYear); };
+  const setMonth = (nextMonth: number) => { if (confirmDraftDiscard()) setMonthState(nextMonth); };
+  const setPlan = (nextPlan: SchedulePlan | null) => {
+    if (nextPlan === null && cancelledPeriodChange.current) { cancelledPeriodChange.current = false; return; }
+    setPlanState(nextPlan);
+  };
   const [editing, setEditing] = useState(false);
   const [leaveStaffId, setLeaveStaffId] = useState<string>("");
   const [leaveDate, setLeaveDate] = useState("");
@@ -44,8 +59,10 @@ export default function Home() {
   const staff = staffQuery.data ?? [];
   const activeStaff = staff.filter(person => person.active);
   const shownPlan = plan ?? scheduleQuery.data?.plan ?? null;
+  const isDraftDirty = plan !== null;
   const issueCount = shownPlan?.issues.filter(issue => issue.level === "error").length ?? 0;
   const statistics = shownPlan ? planStatistics(shownPlan, staff) : [];
+  useUnsavedChangesGuard(isDraftDirty);
 
   const invalidate = async () => Promise.all([utils.schedule.staff.invalidate(), utils.schedule.unavailabilities.invalidate(), utils.schedule.get.invalidate()]);
   const staffMutation = trpc.schedule.upsertStaff.useMutation({ onSuccess: async () => { await utils.schedule.staff.invalidate(); setStaffDialog(false); toast.success("Personel kaydedildi."); }, onError: error => toast.error(error.message) });
@@ -54,7 +71,7 @@ export default function Home() {
   const deleteLeaveMutation = trpc.schedule.deleteUnavailability.useMutation({ onSuccess: async () => { await utils.schedule.unavailabilities.invalidate(); toast.success("Kayıt kaldırıldı."); }, onError: error => toast.error(error.message) });
   const deleteStaffMutation = trpc.schedule.deleteStaff.useMutation({ onSuccess: async () => { await invalidate(); setStaffDialog(false); toast.success("Personel ve ilişkili izin/rapor kayıtları silindi."); }, onError: error => toast.error(error.message) });
   const generateMutation = trpc.schedule.generate.useMutation({ onSuccess: data => { if (data) setPlan(data.plan); setEditing(false); toast.success("Yeni nöbet taslağı oluşturuldu. Mevcut listenin üzerine yazmak için Değişiklikleri kaydet seçeneğini kullanın."); }, onError: error => toast.error(error.message) });
-  const saveMutation = trpc.schedule.save.useMutation({ onSuccess: async data => { if (!data) return; setPlan(data.plan); const critical = data.plan.issues.filter(issue => issue.level === "error"); setEditing(critical.length > 0); await utils.schedule.get.invalidate(); if (critical.length) toast.warning(`${critical.length} kritik notla kaydedildi: ${critical[0]?.date ?? ""} ${critical[0]?.message ?? ""}`); else toast.success("Çizelge kaydedildi ve kurallar yeniden denetlendi."); }, onError: error => toast.error(error.message) });
+  const saveMutation = trpc.schedule.save.useMutation({ onSuccess: async data => { if (!data) return; const critical = data.plan.issues.filter(issue => issue.level === "error"); setPlan(null); setEditing(false); await utils.schedule.get.invalidate(); if (critical.length) toast.warning(`${critical.length} kritik notla kaydedildi: ${critical[0]?.date ?? ""} ${critical[0]?.message ?? ""}`); else toast.success("Çizelge kaydedildi ve kurallar yeniden denetlendi."); }, onError: error => toast.error(error.message) });
   const exportMutation = trpc.schedule.export.useMutation({ onSuccess: data => { const link = document.createElement("a"); link.href = data.url; link.download = `nobet-listesi-${year}-${String(month).padStart(2, "0")}.xlsx`; link.click(); toast.success("Excel dosyası indirilmeye hazır."); }, onError: error => toast.error(error.message) });
 
   const submitStaff = () => staffMutation.mutate(staffForm);
@@ -84,6 +101,7 @@ export default function Home() {
       <section className="mt-6 rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="flex flex-col gap-4 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-3"><h2 className="text-lg font-semibold text-[#17324d]">Nöbet çizelgesi</h2>{shownPlan && <span className="rounded-full bg-[#e7f1fb] px-2.5 py-1 text-xs font-medium text-[#1f4d78]">{periodLabel(year, month)}</span>}</div><p className="mt-1 text-sm text-slate-500">Haftalık bloklar içinde atamaları görün, gerektiğinde düzenleyin ve Excel'e aktarın.</p></div>{shownPlan && <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setPlan(structuredClone(shownPlan)); setEditing(!editing); }}><Pencil className="mr-2 h-4 w-4" />{editing ? "Düzenlemeyi kapat" : "Elle düzenle"}</Button>{editing && <Button disabled={saveMutation.isPending} onClick={() => plan && saveMutation.mutate({ plan })}>{saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Değişiklikleri kaydet</Button>}<Button variant="outline" disabled={exportMutation.isPending} onClick={() => exportMutation.mutate(period)}>{exportMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Excel'e aktar</Button></div>}</div>{scheduleQuery.isLoading ? <div className="flex h-56 items-center justify-center text-sm text-slate-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Çizelge yükleniyor…</div> : !shownPlan ? <div className="grid min-h-80 place-items-center p-8 text-center"><div><CalendarDays className="mx-auto h-10 w-10 text-[#79a9d1]" /><p className="mt-4 text-base font-semibold text-[#17324d]">Bu dönem için çizelge hazır değil.</p><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">Personel havuzunuzu oluşturduktan sonra ay ve yılı seçip otomatik nöbet listesi üretebilirsiniz.</p>{activeStaff.length < 7 && <p className="mt-4 text-xs font-medium text-amber-700">Liste oluşturmak için en az 7 aktif personel gerekir.</p>}</div></div> : <div className="p-4 sm:p-5"><ScheduleTable plan={shownPlan} staff={staff} editable={editing} onPlanChange={setPlan} />{statistics.length > 0 && <div className="mt-7 overflow-hidden rounded-2xl border border-slate-200"><div className="border-b border-slate-100 bg-slate-50 px-4 py-3"><p className="text-sm font-semibold text-[#17324d]">Dengeleme özeti</p></div><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="text-left text-xs text-slate-500"><tr><th className="px-4 py-3">Personel</th><th className="px-4 py-3 text-center">Toplam</th><th className="px-4 py-3 text-center">Sabah</th><th className="px-4 py-3 text-center">Akşam</th><th className="px-4 py-3 text-center">Gece</th></tr></thead><tbody>{statistics.map(entry => <tr key={entry.staffId} className="border-t border-slate-100"><td className="px-4 py-2.5 font-medium text-slate-700">{entry.name}</td><td className="px-4 py-2.5 text-center">{entry.total}</td><td className="px-4 py-2.5 text-center">{entry.morning}</td><td className="px-4 py-2.5 text-center">{entry.evening}</td><td className="px-4 py-2.5 text-center">{entry.night}</td></tr>)}</tbody></table></div></div>}{shownPlan.issues.length > 0 && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="flex items-center gap-2"><AlertCircle className="h-4 w-4 text-amber-700" /><p className="text-sm font-semibold text-amber-900">Planlama notları</p></div><div className="mt-2 grid gap-1">{shownPlan.issues.slice(0, 8).map((issue, index) => <p key={`${issue.date}-${index}`} className={`text-xs ${issue.level === "error" ? "text-rose-700" : "text-amber-800"}`}>{issue.date ? `${issue.date} · ` : ""}{issue.message}</p>)}</div></div>}</div>}</section></main>
     {shownPlan && <PdfShareControls year={year} month={month} />}
     {shownPlan && <ManualCompleteButton plan={shownPlan} editing={editing} onCompleted={setPlan} />}
+    <DraftActions year={year} month={month} plan={shownPlan} isDirty={isDraftDirty} generating={generateMutation.isPending} saving={saveMutation.isPending} onGenerate={() => generateMutation.mutate(period)} onSave={() => plan && saveMutation.mutate({ plan })} onRestored={() => { setPlan(null); setEditing(false); }} />
     <PageShortcuts />
     <StaffDialog open={staffDialog} onOpenChange={setStaffDialog} value={staffForm} onChange={setStaffForm} onSave={submitStaff} saving={staffMutation.isPending} onDelete={staffForm.id ? () => deleteStaffMutation.mutate({ id: staffForm.id! }) : undefined} deleting={deleteStaffMutation.isPending} />
   </div>;

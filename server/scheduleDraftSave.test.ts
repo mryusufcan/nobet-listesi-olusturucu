@@ -4,8 +4,8 @@ import { generateSchedule, type StaffForSchedule } from "../shared/scheduling";
 
 const db = vi.hoisted(() => ({
   deleteConstraint: vi.fn(), deleteSpecialDay: vi.fn(), deleteStaff: vi.fn(), deleteUnavailability: vi.fn(),
-  getSchedule: vi.fn(), importStaffRecords: vi.fn(), listConstraints: vi.fn(), listScheduleHistory: vi.fn(),
-  listSpecialDays: vi.fn(), listStaff: vi.fn(), listUnavailabilities: vi.fn(), saveSchedule: vi.fn(),
+  getSchedule: vi.fn(), importStaffRecords: vi.fn(), listConstraints: vi.fn(), listScheduleHistory: vi.fn(), listScheduleVersions: vi.fn(),
+  listSpecialDays: vi.fn(), listStaff: vi.fn(), listUnavailabilities: vi.fn(), restoreScheduleVersion: vi.fn(), saveSchedule: vi.fn(),
   upsertConstraint: vi.fn(), upsertSpecialDay: vi.fn(), upsertStaff: vi.fn(), upsertUnavailability: vi.fn(),
 }));
 
@@ -50,5 +50,18 @@ describe("schedule generate ve save", () => {
     const result = await appRouter.createCaller(context()).schedule.save({ plan });
     expect(result.plan.issues.some(issue => issue.level === "error" && issue.message.includes("Gece vardiyasına"))).toBe(true);
     expect(db.saveSchedule).toHaveBeenCalledWith(1, expect.objectContaining({ year: 2026, month: 8 }));
+  });
+
+  it("döneme ait sürümleri listeler ve seçilen sürümü geri yükler", async () => {
+    const plan = generateSchedule({ year: 2026, month: 8, staff, unavailable: [] });
+    db.listScheduleVersions.mockResolvedValue([{ id: 9, year: 2026, month: 8, plan, validation: [] }]);
+    db.restoreScheduleVersion.mockResolvedValue({ plan });
+    const caller = appRouter.createCaller(context());
+    const versions = await caller.schedule.versions({ year: 2026, month: 8 });
+    const restored = await caller.schedule.restoreVersion({ id: 9 });
+    expect(versions).toHaveLength(1);
+    expect(db.listScheduleVersions).toHaveBeenCalledWith(1, 2026, 8);
+    expect(restored.plan.days).toHaveLength(31);
+    expect(db.restoreScheduleVersion).toHaveBeenCalledWith(1, 9);
   });
 });

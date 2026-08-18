@@ -1,4 +1,4 @@
-import { boolean, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { boolean, index, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -82,3 +82,15 @@ export const schedules = mysqlTable("schedules", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => [uniqueIndex("schedule_owner_period_unique").on(table.userId, table.year, table.month)]);
+
+export const scheduleVersions = mysqlTable("scheduleVersions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  scheduleId: int("scheduleId").notNull(),
+  year: int("year").notNull(),
+  month: int("month").notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  plan: mediumtext("plan").notNull(),
+  validation: mediumtext("validation").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => [index("schedule_version_period_index").on(table.userId, table.year, table.month)]);
