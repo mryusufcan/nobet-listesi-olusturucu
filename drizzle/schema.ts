@@ -50,6 +50,16 @@ export const unavailabilities = mysqlTable("unavailabilities", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => [uniqueIndex("unavailability_unique").on(table.userId, table.staffId, table.date)]);
 
+export const staffConstraints = mysqlTable("staffConstraints", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  staffId: int("staffId").notNull(),
+  rule: mysqlEnum("rule", ["only_shift", "blocked_shift", "blocked_weekday", "blocked_device", "weekly_max"]).notNull(),
+  value: varchar("value", { length: 80 }).notNull(),
+  note: varchar("note", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => [uniqueIndex("staff_constraint_unique").on(table.userId, table.staffId, table.rule, table.value)]);
+
 export const schedules = mysqlTable("schedules", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

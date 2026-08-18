@@ -1,14 +1,18 @@
 export const EQUIPMENT = ["MR", "BT", "RÖNT-PORT", "RÖNTGEN", "RÖNT-MAMO"] as const;
 export type Equipment = (typeof EQUIPMENT)[number];
+export const MORNING_EQUIPMENT = ["MR", "BT", "RÖNT-PORT", "RÖNT-MAMO"] as const;
 export type Gender = "female" | "male" | "unspecified";
+export type ConstraintRule = "only_shift" | "blocked_shift" | "blocked_weekday" | "blocked_device" | "weekly_max";
+export type PersonalConstraint = { id?: number; staffId: number; rule: ConstraintRule; value: string; note?: string | null };
 
 export const FIXED_RULES = {
   morning: "08:00–16:00",
   evening: "16:00–24:00",
   night: "24:00–08:00",
   weekdayMorningSlots: 4,
-  sundayMorningSlots: 2,
+  sundayMorningSlots: 1,
   eveningSlots: 2,
+  sundayEveningSlots: 1,
   nightSlots: 1,
   weeklyMaximum: 5,
 } as const;
@@ -23,6 +27,7 @@ export type StaffForSchedule = {
   historicalMorning?: number;
   historicalEvening?: number;
   historicalNight?: number;
+  constraints?: PersonalConstraint[];
 };
 
 export type ScheduleDay = {
@@ -78,6 +83,13 @@ function isTuesdayOrWednesday(date: string) {
 }
 
 function allowsShift(staff: StaffForSchedule, shift: "morning" | "evening" | "night", date: string) {
+  const constraints = staff.constraints ?? [];
+  const onlyShifts = constraints.filter(item => item.rule === "only_shift").map(item => item.value);
+  if (onlyShifts.length > 0 && !onlyShifts.includes(shift)) return false;
+  if (constraints.some(item => item.rule === "blocked_shift" && item.value === shift)) return false;
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  if (constraints.some(item => item.rule === "blocked_weekday" && Number(item.value) === weekday)) return false;
   if (hasName(staff, "Emre Coşkun")) return shift === "morning";
   if (hasName(staff, "Burak Badur")) return shift === "morning" || (shift === "night" && isTuesdayOrWednesday(date));
   if (hasName(staff, "Yusuf Can Özdemir") && shift === "morning") {
@@ -85,6 +97,15 @@ function allowsShift(staff: StaffForSchedule, shift: "morning" | "evening" | "ni
     return new Date(Date.UTC(year, month - 1, day)).getUTCDay() !== 5;
   }
   return true;
+}
+
+function allowsEquipment(staff: StaffForSchedule, equipment: Equipment) {
+  return !staff.constraints?.some(item => item.rule === "blocked_device" && item.value === equipment);
+}
+
+function weeklyMaximum(staff: StaffForSchedule) {
+  const values = staff.constraints?.filter(item => item.rule === "weekly_max").map(item => Number(item.value)).filter(value => Number.isInteger(value) && value > 0) ?? [];
+  return Math.min(FIXED_RULES.weeklyMaximum, ...values);
 }
 
 function staffCount(staff: StaffForSchedule) {
@@ -148,6 +169,7 @@ export function generateSchedule(input: {
   const days: ScheduleDay[] = [];
   const dayCount = new Date(Date.UTC(input.year, input.month, 0)).getUTCDate();
   let priorNight: number | null = null;
+  let priorEvening = new Set<number>();
 
   for (let dayNumber = 1; dayNumber <= dayCount; dayNumber += 1) {
     const date = localDateString(input.year, input.month, dayNumber);
@@ -162,10 +184,11 @@ export function generateSchedule(input: {
     const availableFor = (shift: "morning" | "evening" | "night", equipment?: Equipment) =>
       staff.filter(item => {
         if (unavailableToday.has(item.id) || assigned.has(item.id) || priorNight === item.id) return false;
+        if (shift === "morning" && priorEvening.has(item.id)) return false;
         if (mandatoryNight && mandatoryNight.id === item.id && shift !== "night") return false;
-        if ((weekly.get(item.id) ?? 0) >= FIXED_RULES.weeklyMaximum) return false;
+        if ((weekly.get(item.id) ?? 0) >= weeklyMaximum(item)) return false;
         if (!allowsShift(item, shift, date)) return false;
-        if (shift === "morning" && equipment && !item.competencies.includes(equipment)) return false;
+        if (shift === "morning" && equipment && (!item.competencies.includes(equipment) || !allowsEquipment(item, equipment))) return false;
         return true;
       });
 
@@ -186,7 +209,17 @@ export function generateSchedule(input: {
 
     const morningTarget = weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots;
     let morningAssigned = 0;
-    const devicesByScarcity = [...EQUIPMENT].sort((a, b) => availableFor("morning", a).length - availableFor("morning", b).length);
+    const devicesByScarcity = [...MORNING_EQUIPMENT].sort((a, b) => availableFor("morning", a).length - availableFor("morning", b).length);
+    if (weekday === 0) {
+      const chosen = availableFor("morning", "MR").sort((a, b) => score(a, "morning") - score(b, "morning"))[0];
+      if (!chosen) {
+        issues.push({ level: "error", date, message: "Pazar sabahı tüm cihazlar için uygun personel bulunamadı." });
+      } else {
+        EQUIPMENT.forEach(equipment => { day.morning[equipment] = chosen.id; });
+        assign(chosen, "morning");
+        morningAssigned = 1;
+      }
+    }
     if (weekday !== 0) {
       const femalePair = devicesByScarcity
         .map(equipment => ({ equipment, people: availableFor("morning", equipment).filter(item => item.gender === "female") }))
@@ -213,7 +246,8 @@ export function generateSchedule(input: {
       issues.push({ level: "error", date, message: `Sabah vardiyasında ${morningTarget} kişi yerine ${morningAssigned} kişi atanabildi.` });
     }
 
-    for (let slot = 0; slot < FIXED_RULES.eveningSlots; slot += 1) {
+    const eveningTarget = weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots;
+    for (let slot = 0; slot < eveningTarget; slot += 1) {
       const chosen = availableFor("evening").sort((a, b) => score(a, "evening") - score(b, "evening"))[0];
       if (!chosen) {
         issues.push({ level: "error", date, message: "Akşam vardiyası için yeterli uygun personel bulunamadı." });
@@ -235,6 +269,7 @@ export function generateSchedule(input: {
     }
 
     priorNight = day.night;
+    priorEvening = new Set(day.evening.filter((value): value is number => value !== null));
     days.push(day);
   }
 
@@ -258,15 +293,21 @@ export function validateSchedule(
   });
   const weekly = new Map<string, Map<number, number>>();
   let previousNight: number | null = null;
+  let previousEvening: number[] = [];
 
   for (const day of plan.days) {
-    const morningIds = EQUIPMENT.map(equipment => day.morning[equipment]).filter((value): value is number => value !== null);
+    const morningAssignments = EQUIPMENT.map(equipment => day.morning[equipment]).filter((value): value is number => value !== null);
+    const morningIds = Array.from(new Set(morningAssignments));
     const expectedMorning = day.weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots;
     if (morningIds.length !== expectedMorning) {
       issues.push({ level: "error", date: day.date, message: `Sabah vardiyasında ${expectedMorning} cihaz bazlı atama olmalıdır.` });
     }
-    if (day.evening.some(value => value === null)) {
-      issues.push({ level: "error", date: day.date, message: "Akşam vardiyasına iki personel atanmalıdır." });
+    if (day.weekday === 0 && (morningAssignments.length !== EQUIPMENT.length || morningIds.length !== 1)) {
+      issues.push({ level: "error", date: day.date, message: "Pazar sabahında tek bir personel tüm cihazları kapsamalıdır." });
+    }
+    const expectedEvening = day.weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots;
+    if (day.evening.filter(value => value !== null).length !== expectedEvening) {
+      issues.push({ level: "error", date: day.date, message: `Akşam vardiyasına ${expectedEvening} personel atanmalıdır.` });
     }
     if (day.night === null) {
       issues.push({ level: "error", date: day.date, message: "Gece vardiyasına bir personel atanmalıdır." });
@@ -279,15 +320,19 @@ export function validateSchedule(
     const unique = new Set(ids);
     if (unique.size !== ids.length) issues.push({ level: "error", date: day.date, message: "Bir personel aynı güne birden fazla vardiyaya atandı." });
     if (previousNight !== null && unique.has(previousNight)) issues.push({ level: "error", date: day.date, message: "Gece nöbeti sonrası dinlenme kuralı ihlal edildi." });
+    if (previousEvening.some(id => morningIds.includes(id))) issues.push({ level: "error", date: day.date, message: "Akşam vardiyası sonrası ertesi gün sabah dinlenme kuralı ihlal edildi." });
     const noWork = unavailableByDate.get(day.date) ?? new Set<number>();
     ids.forEach(id => {
       if (noWork.has(id)) issues.push({ level: "error", date: day.date, message: "İzinli/raporlu personel vardiyaya atandı." });
     });
-    EQUIPMENT.forEach(equipment => {
+    MORNING_EQUIPMENT.forEach(equipment => {
       const id = day.morning[equipment];
       const person = id ? byId.get(id) : undefined;
       if (person && !person.competencies.includes(equipment)) {
         issues.push({ level: "error", date: day.date, message: `${person.name}, ${equipment} cihazında yetkin değil.` });
+      }
+      if (person && !allowsEquipment(person, equipment)) {
+        issues.push({ level: "error", date: day.date, message: `${person.name} için ${equipment} cihazı özel kısıtla kapatılmış.` });
       }
       if (person && !allowsShift(person, "morning", day.date)) {
         issues.push({ level: "error", date: day.date, message: `${person.name} sabah vardiyası için tanımlı kısıta uymuyor.` });
@@ -310,9 +355,10 @@ export function validateSchedule(
       weekly.set(weekKey(day.date), values);
     });
     previousNight = day.night;
+    previousEvening = day.evening.filter((value): value is number => value !== null);
   }
   weekly.forEach((values, week) => values.forEach((count, id) => {
-    if (count > FIXED_RULES.weeklyMaximum) {
+    if (count > weeklyMaximum(byId.get(id) ?? { id, name: "Personel", active: true, gender: "unspecified", competencies: [] })) {
       issues.push({ level: "error", date: week, message: `${byId.get(id)?.name ?? "Personel"} bir haftada ${count} vardiyaya atandı.` });
     }
   }));
@@ -322,10 +368,7 @@ export function validateSchedule(
 export function planStatistics(plan: Pick<SchedulePlan, "days">, staff: StaffForSchedule[]) {
   const counts = new Map<number, Counts>(staff.map(item => [item.id, zeroCounts()]));
   plan.days.forEach(day => {
-    EQUIPMENT.forEach(equipment => {
-      const id = day.morning[equipment];
-      if (id) addCount(counts, id, "morning");
-    });
+    Array.from(new Set(Object.values(day.morning).filter((value): value is number => value !== null))).forEach(id => addCount(counts, id, "morning"));
     day.evening.forEach(id => id && addCount(counts, id, "evening"));
     if (day.night) addCount(counts, day.night, "night");
   });

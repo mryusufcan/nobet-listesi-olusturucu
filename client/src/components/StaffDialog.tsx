@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,13 +31,15 @@ export const staffToForm = (staff: StaffForSchedule): StaffForm => ({
   historicalMorning: staff.historicalMorning ?? 0, historicalEvening: staff.historicalEvening ?? 0, historicalNight: staff.historicalNight ?? 0,
 });
 
-export function StaffDialog({ open, onOpenChange, value, onChange, onSave, saving }: {
+export function StaffDialog({ open, onOpenChange, value, onChange, onSave, saving, onDelete, deleting }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: StaffForm;
   onChange: (value: StaffForm) => void;
   onSave: () => void;
   saving: boolean;
+  onDelete?: () => void;
+  deleting?: boolean;
 }) {
   const update = (key: keyof StaffForm, next: StaffForm[keyof StaffForm]) => onChange({ ...value, [key]: next });
   const toggleEquipment = (equipment: Equipment) => {
@@ -61,7 +64,7 @@ export function StaffDialog({ open, onOpenChange, value, onChange, onSave, savin
           <fieldset className="rounded-xl border border-slate-200 p-4"><legend className="px-1 text-sm font-medium text-slate-700">Cihaz yetkinlikleri</legend><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">{EQUIPMENT.map(equipment => <label key={equipment} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700"><Checkbox checked={value.competencies.includes(equipment)} onCheckedChange={() => toggleEquipment(equipment)} />{equipment}</label>)}</div></fieldset>
           <fieldset className="rounded-xl border border-slate-200 p-4"><legend className="px-1 text-sm font-medium text-slate-700">İçe aktarılan geçmiş nöbet sayıları</legend><p className="mb-3 text-xs text-slate-500">Dengeleme için önceki listelerden gelen toplamları saklayabilirsiniz.</p><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{(["historicalTotal", "historicalMorning", "historicalEvening", "historicalNight"] as const).map((key, index) => <div key={key} className="grid gap-1"><Label className="text-xs">{["Toplam", "Sabah", "Akşam", "Gece"][index]}</Label><Input type="number" min="0" value={value[key]} onChange={event => update(key, Math.max(0, Number(event.target.value) || 0))} /></div>)}</div></fieldset>
         </div>
-        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Vazgeç</Button><Button disabled={!value.name.trim() || value.competencies.length === 0 || saving} onClick={onSave}>{saving ? "Kaydediliyor…" : "Personeli kaydet"}</Button></DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between"><div>{value.id && onDelete ? <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700">Personeli sil</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{value.name} silinsin mi?</AlertDialogTitle><AlertDialogDescription>Personelin izin ve rapor kayıtları da silinir. Geçmiş çizelgelerde atanmış personeller silinemez; bu durumda pasife alabilirsiniz.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Vazgeç</AlertDialogCancel><AlertDialogAction disabled={deleting} className="bg-rose-600 hover:bg-rose-700" onClick={onDelete}>{deleting ? "Siliniyor…" : "Personeli sil"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog> : null}</div><div className="flex gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Vazgeç</Button><Button disabled={!value.name.trim() || value.competencies.length === 0 || saving} onClick={onSave}>{saving ? "Kaydediliyor…" : "Personeli kaydet"}</Button></div></DialogFooter>
       </DialogContent>
     </Dialog>
   );

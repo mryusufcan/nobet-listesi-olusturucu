@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
-import { schedules, staff, unavailabilities, type InsertUser } from "../drizzle/schema";
-import type { Equipment, Gender, SchedulePlan, StaffForSchedule } from "../shared/scheduling";
+import { schedules, staff, staffConstraints, unavailabilities } from "../drizzle/schema";
+import type { ConstraintRule, Equipment, Gender, PersonalConstraint, SchedulePlan, StaffForSchedule } from "../shared/scheduling";
 import { getDb } from "./db";
 
 type StaffRecordInput = {
@@ -32,7 +32,32 @@ export async function listStaff(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
   const rows = await db.select().from(staff).where(eq(staff.userId, userId)).orderBy(asc(staff.name));
-  return rows.map(toScheduleStaff);
+  const constraints = await listConstraints(userId);
+  return rows.map(row => ({ ...toScheduleStaff(row), constraints: constraints.filter(item => item.staffId === row.id) }));
+}
+
+export async function listConstraints(userId: number, staffId?: number): Promise<PersonalConstraint[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const rows = await db.select().from(staffConstraints).where(staffId ? and(eq(staffConstraints.userId, userId), eq(staffConstraints.staffId, staffId)) : eq(staffConstraints.userId, userId)).orderBy(asc(staffConstraints.id));
+  return rows.map(row => ({ id: row.id, staffId: row.staffId, rule: row.rule as ConstraintRule, value: row.value, note: row.note }));
+}
+
+export async function upsertConstraint(userId: number, input: Omit<PersonalConstraint, "id"> & { id?: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const values = { staffId: input.staffId, rule: input.rule, value: input.value, note: input.note ?? null };
+  if (input.id) {
+    await db.update(staffConstraints).set(values).where(and(eq(staffConstraints.id, input.id), eq(staffConstraints.userId, userId)));
+    return;
+  }
+  await db.insert(staffConstraints).values({ userId, ...values }).onDuplicateKeyUpdate({ set: { note: values.note } });
+}
+
+export async function deleteConstraint(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  await db.delete(staffConstraints).where(and(eq(staffConstraints.id, id), eq(staffConstraints.userId, userId)));
 }
 
 export async function upsertStaff(userId: number, input: StaffRecordInput & { id?: number }) {
@@ -77,6 +102,27 @@ export async function importStaffRecords(userId: number, records: StaffRecordInp
   return listStaff(userId);
 }
 
+function planUsesStaff(plan: SchedulePlan, staffId: number) {
+  return plan.days.some(day =>
+    Object.values(day.morning).some(value => value === staffId) ||
+    day.evening.some(value => value === staffId) ||
+    day.night === staffId,
+  );
+}
+
+export async function deleteStaff(userId: number, staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const ownerSchedules = await db.select({ plan: schedules.plan }).from(schedules).where(eq(schedules.userId, userId));
+  const isUsedInHistory = ownerSchedules.some(record => planUsesStaff(JSON.parse(record.plan) as SchedulePlan, staffId));
+  if (isUsedInHistory) {
+    throw new Error("Bu personel geçmiş çizelgelerde atanmış. Geçmiş kayıtların bütünlüğünü korumak için silinemez; personeli pasife alabilirsiniz.");
+  }
+  await db.delete(unavailabilities).where(and(eq(unavailabilities.userId, userId), eq(unavailabilities.staffId, staffId)));
+  await db.delete(staffConstraints).where(and(eq(staffConstraints.userId, userId), eq(staffConstraints.staffId, staffId)));
+  await db.delete(staff).where(and(eq(staff.userId, userId), eq(staff.id, staffId)));
+}
+
 export async function listUnavailabilities(userId: number, year?: number, month?: number) {
   const db = await getDb();
   if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
@@ -103,6 +149,13 @@ export async function getSchedule(userId: number, year: number, month: number) {
   const rows = await db.select().from(schedules).where(and(eq(schedules.userId, userId), eq(schedules.year, year), eq(schedules.month, month))).limit(1);
   if (!rows[0]) return null;
   return { ...rows[0], plan: JSON.parse(rows[0].plan) as SchedulePlan, validation: JSON.parse(rows[0].validation) };
+}
+
+export async function listScheduleHistory(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const rows = await db.select().from(schedules).where(eq(schedules.userId, userId)).orderBy(asc(schedules.year), asc(schedules.month));
+  return rows.map(row => ({ ...row, plan: JSON.parse(row.plan) as SchedulePlan }));
 }
 
 export async function saveSchedule(userId: number, plan: SchedulePlan) {

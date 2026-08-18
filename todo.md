@@ -11,3 +11,20 @@
 - [x] Rafine, erişilebilir ve responsive kullanıcı arayüzünü oluşturma.
 - [x] Birim testleri, uygulama derleme kontrolleri ve görsel doğrulama gerçekleştirme.
 - [x] Çalışan sürüm için kontrol noktası oluşturma ve kullanım/yayınlama yönergelerini teslim etme.
+- [x] Personel bazlı özel vardiya, gün ve cihaz kısıtlarını tanımlama/veritabanında saklama altyapısı ekleme.
+- [x] Personel silme işlemini ilgili izin ve kısıt kayıtlarını güvenle temizleyecek biçimde ekleme.
+- [x] Özel kısıtları ekleme, düzenleme ve kaldırma ekranını oluşturma; bunları atama algoritmasında zorunlu kılma.
+- [x] Geçmiş aylardaki çizelgeleri personel ve vardiya türüne göre karşılaştıran denge raporu sayfası oluşturma.
+- [x] Oluşturulmuş çizelgeleri PDF olarak indirme özelliği ekleme.
+- [x] PDF/çizelge bağlantısını yerel paylaşım veya bağlantı kopyalama ile tek tıkla paylaşma akışı ekleme.
+- [x] Yeni kısıt, rapor, PDF/paylaşım ve silme işlevleri için test, görsel kontrol ve teslim kontrol noktası oluşturma.
+- [x] Personel bazlı özel vardiya, gün ve cihaz kısıtlarını tanımlama/veritabanında saklama altyapısı ekleme.
+- [x] Özel kısıtları ekleme, düzenleme ve kaldırma ekranını oluşturma; bunları atama algoritmasında zorunlu kılma.
+- [x] Geçmiş aylardaki çizelgeleri personel ve vardiya türüne göre karşılaştıran denge raporu sayfası oluşturma.
+- [x] Oluşturulmuş çizelgeleri PDF olarak indirme özelliği ekleme.
+- [x] PDF/çizelge bağlantısını yerel paylaşım veya bağlantı kopyalama ile tek tıkla paylaşma akışı ekleme.
+- [x] Yeni kısıt, rapor ve PDF/paylaşım işlevleri için test, görsel kontrol ve teslim kontrol noktası oluşturma.
+- [x] 16:00–00:00 vardiyası sonrası ertesi gün sabah vardiyası yasağını atama ve doğrulama kurallarına ekleme.
+- [x] Pazartesi–Cumartesi sabah vardiyasını MR, BT, Portable ve Mamografi için birer kişi; Pazar sabahını tek kişi olacak şekilde güncelleme.
+- [x] Pazartesi–Cumartesi akşam vardiyasını iki kişi, Pazar akşam vardiyasını tek kişi olacak şekilde güncelleme.
+- [x] Yeni vardiya kuralları için algoritma ve doğrulama testleri ekleme.
