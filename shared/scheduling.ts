@@ -37,6 +37,7 @@ export type ScheduleDay = {
   morning: Record<Equipment, number | null>;
   evening: [number | null, number | null];
   night: number | null;
+  fallbackNight?: boolean;
   specialDayName?: string;
 };
 
@@ -301,7 +302,19 @@ export function generateSchedule(input: {
         ? mandatoryNight
         : nightCandidates.sort((a, b) => score(a, "night") - score(b, "night"))[0];
       if (!chosenNight) {
-        issues.push({ level: "error", date, message: "Gece vardiyası için uygun personel bulunamadı." });
+        const fallbackNight = staff.find(item => item.id === 6
+          && !unavailableToday.has(item.id)
+          && !assigned.has(item.id)
+          && priorNight !== item.id
+          && allowsShift(item, "night", date));
+        if (!fallbackNight) {
+          issues.push({ level: "error", date, message: "Gece vardiyası için uygun personel bulunamadı." });
+        } else {
+          day.night = fallbackNight.id;
+          day.fallbackNight = true;
+          assign(fallbackNight, "night");
+          issues.push({ level: "warning", date, message: "Gece vardiyası boş kalmasın diye personel ID 6 son çare olarak atandı." });
+        }
       } else {
         day.night = chosenNight.id;
         assign(chosenNight, "night");
@@ -333,6 +346,7 @@ export function validateSchedule(
     unavailableByDate.set(item.date, values);
   });
   const weekly = new Map<string, Map<number, number>>();
+  const fallbackNights = new Map<string, Map<number, number>>();
   let previousNight: number | null = null;
   let previousEvening: number[] = [];
   const specialDayByDate = new Map(specialDays.map(item => [item.date, item]));
@@ -391,11 +405,17 @@ export function validateSchedule(
       values.set(id, (values.get(id) ?? 0) + 1);
       weekly.set(weekKey(day.date), values);
     });
+    if (day.fallbackNight && day.night === 6) {
+      const values = fallbackNights.get(weekKey(day.date)) ?? new Map<number, number>();
+      values.set(6, (values.get(6) ?? 0) + 1);
+      fallbackNights.set(weekKey(day.date), values);
+    }
     previousNight = day.night;
     previousEvening = day.evening.filter((value): value is number => value !== null);
   }
   weekly.forEach((values, week) => values.forEach((count, id) => {
-    if (count > weeklyMaximum(byId.get(id) ?? { id, name: "Personel", active: true, gender: "unspecified", competencies: [] })) {
+    const fallbackCount = fallbackNights.get(week)?.get(id) ?? 0;
+    if (count - fallbackCount > weeklyMaximum(byId.get(id) ?? { id, name: "Personel", active: true, gender: "unspecified", competencies: [] })) {
       issues.push({ level: "error", date: week, message: `${byId.get(id)?.name ?? "Personel"} bir haftada ${count} vardiyaya atandı.` });
     }
   }));

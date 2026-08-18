@@ -60,6 +60,38 @@ describe("nöbet algoritması", () => {
     expect(validateSchedule(secondPlan, people, []).filter(issue => issue.level === "error")).toHaveLength(0);
   });
 
+  it("normal gece adayı kalmadığında personel 6'yı son çare olarak atar", () => {
+    const lockedPlan = {
+      days: [
+        ...Array.from({ length: 5 }, (_, offset) => ({
+        date: `2026-08-${String(24 + offset).padStart(2, "0")}`,
+        weekday: new Date(Date.UTC(2026, 7, 24 + offset)).getUTCDay(),
+        morning: { MR: 6, BT: null, "RÖNT-PORT": null, RÖNTGEN: null, "RÖNT-MAMO": null },
+        evening: [null, null] as [number | null, number | null],
+        night: null,
+        })),
+        {
+          date: "2026-08-30",
+          weekday: 0,
+          morning: { MR: 1, BT: null, "RÖNT-PORT": null, RÖNTGEN: null, "RÖNT-MAMO": null },
+          evening: [2, 3] as [number | null, number | null],
+          night: null,
+        },
+      ],
+    };
+    const unavailable = [
+      ...Array.from({ length: 23 }, (_, offset) => ({ staffId: 6, date: `2026-08-${String(offset + 1).padStart(2, "0")}` })),
+      ...people.filter(person => person.id > 3 && person.id !== 6).map(person => ({ staffId: person.id, date: "2026-08-30" })),
+    ];
+    const specialDays = [{ date: "2026-08-30", name: "Özel Pazar", morningSlots: 1, eveningSlots: 2 }];
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable, specialDays, lockedPlan, seed: 11 });
+    const fallbackDay = plan.days.find(day => day.date === "2026-08-30")!;
+    expect(fallbackDay.night).toBe(6);
+    expect(fallbackDay.fallbackNight).toBe(true);
+    expect(plan.issues.some(issue => issue.level === "warning" && issue.date === "2026-08-30" && issue.message.includes("son çare"))).toBe(true);
+    expect(validateSchedule(plan, people, unavailable, specialDays).filter(issue => issue.level === "error")).toHaveLength(0);
+  });
+
   it("aynı personelin aynı gün birden fazla vardiyaya yazılmasını hata olarak bildirir", () => {
     const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
     plan.days[0].evening[0] = plan.days[0].morning.MR;

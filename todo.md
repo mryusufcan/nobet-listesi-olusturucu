@@ -72,3 +72,5 @@
 - [x] Planlama başlığındaki Liste oluştur düğmesini farklı yeni taslak üretecek seed akışına bağlama.
 - [x] Yeni liste oluşturulduğunda eski çizelge atamalarını taşımadan yeni taslağı ekranda gösterme.
 - [x] Yeni taslak üretiminin mevcut listeyi kalıcı olarak değiştirmediğini test edip doğrulama.
+- [x] Normal gece adayları tükendiğinde personel ID 6 için güvenli son çare ataması ekleme.
+- [x] Son çare gece atamasını izin, günlük tek vardiya ve dinlenme kurallarını koruyacak şekilde test etme.
