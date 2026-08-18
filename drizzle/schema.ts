@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -25,4 +25,39 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+export const staff = mysqlTable("staff", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  gender: mysqlEnum("gender", ["female", "male", "unspecified"]).default("unspecified").notNull(),
+  active: boolean("active").default(true).notNull(),
+  competencies: text("competencies").notNull(),
+  historicalTotal: int("historicalTotal").default(0).notNull(),
+  historicalMorning: int("historicalMorning").default(0).notNull(),
+  historicalEvening: int("historicalEvening").default(0).notNull(),
+  historicalNight: int("historicalNight").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => [uniqueIndex("staff_owner_name_unique").on(table.userId, table.name)]);
+
+export const unavailabilities = mysqlTable("unavailabilities", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  staffId: int("staffId").notNull(),
+  date: varchar("date", { length: 10 }).notNull(),
+  type: mysqlEnum("type", ["leave", "report"]).default("leave").notNull(),
+  note: varchar("note", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => [uniqueIndex("unavailability_unique").on(table.userId, table.staffId, table.date)]);
+
+export const schedules = mysqlTable("schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  year: int("year").notNull(),
+  month: int("month").notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  plan: mediumtext("plan").notNull(),
+  validation: mediumtext("validation").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => [uniqueIndex("schedule_owner_period_unique").on(table.userId, table.year, table.month)]);
