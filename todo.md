@@ -30,3 +30,10 @@
 - [x] Yeni vardiya kuralları için algoritma ve doğrulama testleri ekleme.
 - [x] Geçmiş çizelgede atanmış personellerin geçmiş veriyi koruyarak silinebilmesini sağlama.
 - [x] Güncellenen personel silme davranışını test etme ve kontrol noktası oluşturma.
+- [x] Tüm personel, izin, özel kısıt ve kaydedilmiş çizelge verilerini onaylı kapsamda silme.
+- [x] Tüm veri tablolarının boş başlangıç durumunu doğrulama.
+- [x] RÖNT-MAMO cihazına yalnızca kadın personel atama kuralını otomatik planlama ve manuel doğrulamaya ekleme.
+- [x] Mamografi cinsiyet uygunluğu kuralını test etme ve kontrol noktası oluşturma.
+- [x] Pazar sabahı tek kişi istisnası dışında aynı personele aynı gün birden fazla atama yapılmasını engelleme.
+- [x] Manuel çizelge düzenlemesinde seçilen personelin o günkü diğer vardiyalardan otomatik dışlanmasını sağlama.
+- [x] Gün içi tekrar atama ve mamografi cinsiyet kuralları için test ekleme.

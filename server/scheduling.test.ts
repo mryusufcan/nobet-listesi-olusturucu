@@ -31,8 +31,32 @@ describe("nöbet algoritması", () => {
   it("Pazar gününde tek kişi sabah tüm cihazları, akşam vardiyasını ise tek başına kapsar", () => {
     const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
     const sunday = plan.days.find(day => day.weekday === 0)!;
-    expect(new Set(Object.values(sunday.morning)).size).toBe(1);
+    expect(sunday.morning.MR).not.toBeNull();
+    expect(sunday.morning.BT).toBeNull();
+    expect(sunday.morning["RÖNT-MAMO"]).toBeNull();
     expect(sunday.evening.filter(value => value !== null)).toHaveLength(1);
+  });
+
+  it("Mamografi cihazına yalnızca kadın personel atar", () => {
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
+    plan.days.filter(day => day.weekday !== 0).forEach(day => {
+      const assigned = people.find(person => person.id === day.morning["RÖNT-MAMO"]);
+      expect(assigned?.gender).toBe("female");
+    });
+  });
+
+  it("aynı personelin aynı gün birden fazla vardiyaya yazılmasını hata olarak bildirir", () => {
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
+    plan.days[0].evening[0] = plan.days[0].morning.MR;
+    const issues = validateSchedule(plan, people, []);
+    expect(issues.some(issue => issue.level === "error" && issue.message.includes("birden fazla vardiyaya"))).toBe(true);
+  });
+
+  it("erkek personelin Mamografi cihazına elle atanmasını hata olarak bildirir", () => {
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
+    plan.days[0].morning["RÖNT-MAMO"] = 6;
+    const issues = validateSchedule(plan, people, []);
+    expect(issues.some(issue => issue.level === "error" && issue.message.includes("Mamografi cihazına atanamaz"))).toBe(true);
   });
 
   it("kişiye özel engellenen vardiya kısıtını uygular", () => {

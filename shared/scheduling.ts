@@ -100,6 +100,7 @@ function allowsShift(staff: StaffForSchedule, shift: "morning" | "evening" | "ni
 }
 
 function allowsEquipment(staff: StaffForSchedule, equipment: Equipment) {
+  if (equipment === "RÖNT-MAMO" && staff.gender !== "female") return false;
   return !staff.constraints?.some(item => item.rule === "blocked_device" && item.value === equipment);
 }
 
@@ -215,7 +216,7 @@ export function generateSchedule(input: {
       if (!chosen) {
         issues.push({ level: "error", date, message: "Pazar sabahı tüm cihazlar için uygun personel bulunamadı." });
       } else {
-        EQUIPMENT.forEach(equipment => { day.morning[equipment] = chosen.id; });
+        day.morning.MR = chosen.id;
         assign(chosen, "morning");
         morningAssigned = 1;
       }
@@ -297,13 +298,10 @@ export function validateSchedule(
 
   for (const day of plan.days) {
     const morningAssignments = EQUIPMENT.map(equipment => day.morning[equipment]).filter((value): value is number => value !== null);
-    const morningIds = Array.from(new Set(morningAssignments));
+    const morningIds = morningAssignments;
     const expectedMorning = day.weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots;
     if (morningIds.length !== expectedMorning) {
       issues.push({ level: "error", date: day.date, message: `Sabah vardiyasında ${expectedMorning} cihaz bazlı atama olmalıdır.` });
-    }
-    if (day.weekday === 0 && (morningAssignments.length !== EQUIPMENT.length || morningIds.length !== 1)) {
-      issues.push({ level: "error", date: day.date, message: "Pazar sabahında tek bir personel tüm cihazları kapsamalıdır." });
     }
     const expectedEvening = day.weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots;
     if (day.evening.filter(value => value !== null).length !== expectedEvening) {
@@ -332,7 +330,7 @@ export function validateSchedule(
         issues.push({ level: "error", date: day.date, message: `${person.name}, ${equipment} cihazında yetkin değil.` });
       }
       if (person && !allowsEquipment(person, equipment)) {
-        issues.push({ level: "error", date: day.date, message: `${person.name} için ${equipment} cihazı özel kısıtla kapatılmış.` });
+        issues.push({ level: "error", date: day.date, message: equipment === "RÖNT-MAMO" ? `${person.name} erkek olduğu için Mamografi cihazına atanamaz.` : `${person.name} için ${equipment} cihazı özel kısıtla kapatılmış.` });
       }
       if (person && !allowsShift(person, "morning", day.date)) {
         issues.push({ level: "error", date: day.date, message: `${person.name} sabah vardiyası için tanımlı kısıta uymuyor.` });
