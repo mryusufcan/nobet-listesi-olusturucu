@@ -66,3 +66,6 @@
 - [x] Çizelge sürümlerini saklayacak veri modeli ve geçmiş listeleme prosedürü ekleme.
 - [x] Sürüm geçmişinden liste seçme ve seçilen eski sürümü geri yükleme arayüzünü ekleme.
 - [x] Taslak uyarısı ve sürüm geçmişi davranışlarını test edip kontrol noktası oluşturma.
+- [x] Taslağı kaydet düğmesini çizelge başlığında görünür ve erişilebilir hale getirme.
+- [x] Eski “Değişiklikleri kaydet” ifadelerini “Taslağı kaydet” eylem adıyla güncelleme.
+- [x] Denge raporu grafiklerinde eksen, sütun ve açıklama öğelerinin üst üste binmesini önleme.
