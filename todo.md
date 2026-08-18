@@ -45,3 +45,9 @@
 - [x] Sabah, akşam ve gece vardiyalarına ayırt edici ve erişilebilir tema uygulama.
 - [x] Yeni özel gün, hafta başlangıcı ve tema davranışlarını test edip kontrol noktası oluşturma.
 - [x] Pazar gününde kullanılmayan cihaz ve ikinci akşam vardiyası hücrelerindeki açıklama metinlerini kaldırma.
+- [x] Özel gün şablonları tablosu sorgusunun başarısız olmasına neden olan veritabanı sorununu düzeltme.
+- [x] Denge raporundaki tek ay grafiğini gereğinden geniş görünmeden, veri hacmine uygun biçimde gösterme.
+- [x] Özel gün sorgusu ve denge raporu grafik düzeltmelerini test edip kontrol noktası oluşturma.
+- [x] Kullanıcının elle yaptığı vardiya atamalarını sabitleyip yalnızca boş hücreleri kural uyumlu biçimde otomatik doldurma.
+- [x] Manuel atamaları koruyan otomatik tamamlama işlemi için arayüz, algoritma ve test ekleme.
+- [x] Manuel atamaları koruyan otomatik tamamlama işlemi için arayüz, algoritma ve test ekleme.

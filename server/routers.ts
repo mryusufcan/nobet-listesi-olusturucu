@@ -70,6 +70,11 @@ export const appRouter = router({
       const plan = generateSchedule({ year: input.year, month: input.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays });
       return saveSchedule(ctx.user.id, plan);
     }),
+    complete: protectedProcedure.input(z.object({ plan: z.custom<SchedulePlan>() })).mutation(async ({ ctx, input }) => {
+      const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.plan.year, input.plan.month), listSpecialDays(ctx.user.id, input.plan.year, input.plan.month)]);
+      const plan = generateSchedule({ year: input.plan.year, month: input.plan.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays, lockedPlan: input.plan });
+      return { plan };
+    }),
     save: protectedProcedure.input(z.object({ plan: z.custom<SchedulePlan>() })).mutation(async ({ ctx, input }) => {
       const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.plan.year, input.plan.month), listSpecialDays(ctx.user.id, input.plan.year, input.plan.month)]);
       const plan = { ...input.plan, issues: validateSchedule(input.plan, people, unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays) };

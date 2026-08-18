@@ -79,6 +79,16 @@ describe("nöbet algoritması", () => {
     expect(holiday.evening.filter(value => value !== null)).toHaveLength(1);
   });
 
+  it("elle atanmış vardiyaları korur ve yalnızca boş vardiyaları tamamlar", () => {
+    const fullPlan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
+    const partialDays = fullPlan.days.map(day => ({ ...day, morning: { MR: null, BT: null, "RÖNT-PORT": null, RÖNTGEN: null, "RÖNT-MAMO": null }, evening: [null, null] as [number | null, number | null], night: null }));
+    const lockedMorningId = fullPlan.days[0].morning.MR;
+    partialDays[0].morning.MR = lockedMorningId;
+    const completed = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [], lockedPlan: { days: partialDays } });
+    expect(completed.days[0].morning.MR).toBe(lockedMorningId);
+    expect(completed.issues.filter(issue => issue.level === "error")).toHaveLength(0);
+  });
+
   it("izinli personeli ilgili güne atamaz", () => {
     const unavailable = [{ staffId: 1, date: "2026-08-05" }];
     const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable });

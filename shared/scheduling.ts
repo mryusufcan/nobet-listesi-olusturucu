@@ -158,6 +158,7 @@ export function generateSchedule(input: {
   staff: StaffForSchedule[];
   unavailable: Array<{ staffId: number; date: string }>;
   specialDays?: SpecialDayTemplate[];
+  lockedPlan?: Pick<SchedulePlan, "days">;
 }): SchedulePlan {
   const issues: RuleIssue[] = [];
   const staff = input.staff.filter(item => item.active);
@@ -180,6 +181,12 @@ export function generateSchedule(input: {
     const date = localDateString(input.year, input.month, dayNumber);
     const weekday = new Date(Date.UTC(input.year, input.month - 1, dayNumber)).getUTCDay();
     const day = createEmptyDay(date, weekday);
+    const lockedDay = input.lockedPlan?.days.find(item => item.date === date);
+    if (lockedDay) {
+      day.morning = { ...lockedDay.morning };
+      day.evening = [...lockedDay.evening] as [number | null, number | null];
+      day.night = lockedDay.night;
+    }
     const specialDay = specialDayByDate.get(date);
     if (specialDay) day.specialDayName = specialDay.name;
     const unavailableToday = unavailable.get(date) ?? new Set<number>();
@@ -216,8 +223,18 @@ export function generateSchedule(input: {
 
     const morningTarget = specialDay?.morningSlots ?? (weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots);
     let morningAssigned = 0;
+    const registerLocked = (id: number | null, shift: "morning" | "evening" | "night") => {
+      if (!id) return;
+      const person = staff.find(item => item.id === id);
+      if (!person) { issues.push({ level: "error", date, message: "Elle atanmış personel aktif kadroda bulunamadı." }); return; }
+      assign(person, shift);
+      if (shift === "morning") morningAssigned += 1;
+    };
+    MORNING_EQUIPMENT.forEach(equipment => registerLocked(day.morning[equipment], "morning"));
+    day.evening.forEach(id => registerLocked(id, "evening"));
+    registerLocked(day.night, "night");
     const devicesByScarcity = [...MORNING_EQUIPMENT].sort((a, b) => availableFor("morning", a).length - availableFor("morning", b).length);
-    if (morningTarget === 1) {
+    if (morningTarget === 1 && morningAssigned === 0) {
       const chosen = availableFor("morning", "MR").sort((a, b) => score(a, "morning") - score(b, "morning"))[0];
       if (!chosen) {
         issues.push({ level: "error", date, message: "Tek kişilik sabah şablonu için uygun personel bulunamadı." });
@@ -227,7 +244,7 @@ export function generateSchedule(input: {
         morningAssigned = 1;
       }
     }
-    if (weekday !== 0 && morningTarget > 1) {
+    if (weekday !== 0 && morningTarget > 1 && morningAssigned < morningTarget) {
       const femalePair = devicesByScarcity
         .map(equipment => ({ equipment, people: availableFor("morning", equipment).filter(item => item.gender === "female") }))
         .find(item => item.people.length > 0);
@@ -255,6 +272,7 @@ export function generateSchedule(input: {
 
     const eveningTarget = specialDay?.eveningSlots ?? (weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots);
     for (let slot = 0; slot < eveningTarget; slot += 1) {
+      if (day.evening[slot as 0 | 1] !== null) continue;
       const chosen = availableFor("evening").sort((a, b) => score(a, "evening") - score(b, "evening"))[0];
       if (!chosen) {
         issues.push({ level: "error", date, message: "Akşam vardiyası için yeterli uygun personel bulunamadı." });
@@ -264,15 +282,17 @@ export function generateSchedule(input: {
       assign(chosen, "evening");
     }
 
-    const nightCandidates = availableFor("night");
-    const chosenNight = mandatoryNight && nightCandidates.some(item => item.id === mandatoryNight.id)
-      ? mandatoryNight
-      : nightCandidates.sort((a, b) => score(a, "night") - score(b, "night"))[0];
-    if (!chosenNight) {
-      issues.push({ level: "error", date, message: "Gece vardiyası için uygun personel bulunamadı." });
-    } else {
-      day.night = chosenNight.id;
-      assign(chosenNight, "night");
+    if (day.night === null) {
+      const nightCandidates = availableFor("night");
+      const chosenNight = mandatoryNight && nightCandidates.some(item => item.id === mandatoryNight.id)
+        ? mandatoryNight
+        : nightCandidates.sort((a, b) => score(a, "night") - score(b, "night"))[0];
+      if (!chosenNight) {
+        issues.push({ level: "error", date, message: "Gece vardiyası için uygun personel bulunamadı." });
+      } else {
+        day.night = chosenNight.id;
+        assign(chosenNight, "night");
+      }
     }
 
     priorNight = day.night;
@@ -281,7 +301,7 @@ export function generateSchedule(input: {
   }
 
   const plan: SchedulePlan = { year: input.year, month: input.month, days, issues, createdAt: new Date().toISOString() };
-  plan.issues.push(...validateSchedule(plan, input.staff, input.unavailable));
+  plan.issues.push(...validateSchedule(plan, input.staff, input.unavailable, input.specialDays));
   return plan;
 }
 
