@@ -89,3 +89,8 @@
 - [x] Kural uyumunu koruyan akşam/gece vardiyası yeniden atamalarıyla dağılımı iyileştirme.
 - [x] Dengeleme kapalı/açık çizelgeleri karşılaştırıp toplam, akşam ve gece maliyetinin düştüğünü test etme.
 - [x] Toplam, akşam ve gece dağılım maliyetlerini ayrı ayrı hesaplayıp dengeleme öncesi/sonrası test etme.
+- [ ] GitHub Pages için çalışan uygulamaya yönlendiren statik giriş sayfasını hazırlama.
+- [ ] Kaynak kodunu özel GitHub deposuna aktarma.
+- [ ] GitHub Pages yayınını etkinleştirip adresini doğrulama.
+- [ ] Tam kaynak kodu, testler ve yapılandırma dosyalarını GitHub deposuna aktarma.
+- [ ] Yerel çalışma ve sunucu/veritabanı gerektiren tam işlevli dağıtım yönergelerini ekleme.
