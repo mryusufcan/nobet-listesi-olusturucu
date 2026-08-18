@@ -85,3 +85,7 @@
 - [x] Dağılım, zorunlu atama görünürlüğü/onayı ve gece riski analizini test etme.
 - [x] Akşam ve gece vardiyalarında kişi bazlı hedef dağılımı güçlendirip sıfır atama dengesizliğini azaltma.
 - [x] Gece riski analiz bileşenini tamamlayıp planlama ekranına bağlama.
+- [x] Yeniden atama öncesi/sonrası karşılaştırılabilen dışa açık denge maliyeti fonksiyonu ekleme.
+- [x] Kural uyumunu koruyan akşam/gece vardiyası yeniden atamalarıyla dağılımı iyileştirme.
+- [x] Dengeleme kapalı/açık çizelgeleri karşılaştırıp toplam, akşam ve gece maliyetinin düştüğünü test etme.
+- [x] Toplam, akşam ve gece dağılım maliyetlerini ayrı ayrı hesaplayıp dengeleme öncesi/sonrası test etme.

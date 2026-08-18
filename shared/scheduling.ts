@@ -170,6 +170,7 @@ export function generateSchedule(input: {
   specialDays?: SpecialDayTemplate[];
   lockedPlan?: Pick<SchedulePlan, "days">;
   seed?: number;
+  rebalance?: boolean;
 }): SchedulePlan {
   const issues: RuleIssue[] = [];
   const staff = input.staff.filter(item => item.active);
@@ -354,8 +355,95 @@ export function generateSchedule(input: {
   }
 
   const plan: SchedulePlan = { year: input.year, month: input.month, days, issues, createdAt: new Date().toISOString() };
+  if (input.rebalance !== false) rebalanceSchedule(plan, input.staff, input.unavailable, input.specialDays);
   plan.issues.push(...validateSchedule(plan, input.staff, input.unavailable, input.specialDays));
   return plan;
+}
+
+export type BalanceMetrics = { total: number; evening: number; night: number; composite: number };
+
+export function balanceMetrics(plan: Pick<SchedulePlan, "days">, staff: StaffForSchedule[]): BalanceMetrics {
+  const active = staff.filter(item => item.active);
+  const canWorkShift = (person: StaffForSchedule, shift: "morning" | "evening" | "night") => plan.days.some(day => allowsShift(person, shift, day.date));
+  const eligible = {
+    morning: active.filter(person => canWorkShift(person, "morning")),
+    evening: active.filter(person => canWorkShift(person, "evening")),
+    night: active.filter(person => canWorkShift(person, "night")),
+  };
+  const counts = new Map(planStatistics(plan, staff).map(entry => [entry.staffId, entry]));
+  const variance = (field: keyof Counts, people: StaffForSchedule[]) => {
+    if (!people.length) return 0;
+    const values = people.map(person => counts.get(person.id)?.[field] ?? 0);
+    const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return values.reduce((sum, value) => sum + (value - average) ** 2, 0);
+  };
+  const total = variance("total", active);
+  const evening = variance("evening", eligible.evening);
+  const night = variance("night", eligible.night);
+  return { total, evening, night, composite: total * 0.75 + evening * 3.5 + night * 4 };
+}
+
+export function balanceCost(plan: Pick<SchedulePlan, "days">, staff: StaffForSchedule[]) {
+  return balanceMetrics(plan, staff).composite;
+}
+
+function rebalanceSchedule(plan: SchedulePlan, staff: StaffForSchedule[], unavailable: Array<{ staffId: number; date: string }>, specialDays: SpecialDayTemplate[] = []) {
+  const active = staff.filter(item => item.active);
+  const canWorkShift = (person: StaffForSchedule, shift: "morning" | "evening" | "night") => plan.days.some(day => allowsShift(person, shift, day.date));
+  const eligible = {
+    morning: active.filter(person => canWorkShift(person, "morning")),
+    evening: active.filter(person => canWorkShift(person, "evening")),
+    night: active.filter(person => canWorkShift(person, "night")),
+  };
+  const setAssignment = (candidate: SchedulePlan, dayIndex: number, shift: "morning" | "evening" | "night", slot: Equipment | 0 | 1 | null, staffId: number) => {
+    const day = candidate.days[dayIndex];
+    if (shift === "morning") day.morning[slot as Equipment] = staffId;
+    else if (shift === "evening") day.evening[slot as 0 | 1] = staffId;
+    else { day.night = staffId; day.fallbackNight = false; }
+  };
+  let currentCost = balanceCost(plan, staff);
+  let currentErrors = validateSchedule(plan, staff, unavailable, specialDays).filter(issue => issue.level === "error").length;
+  const shiftOrder: Array<"night" | "evening" | "morning"> = ["night", "evening", "morning"];
+  for (let iteration = 0; iteration < 64; iteration += 1) {
+    let improved = false;
+    for (const shift of shiftOrder) {
+      const statistics = new Map(planStatistics(plan, staff).map(entry => [entry.staffId, entry]));
+      const field = shift === "morning" ? "morning" : shift === "evening" ? "evening" : "night";
+      const people = eligible[shift];
+      const donors = [...people].sort((a, b) => (statistics.get(b.id)?.[field] ?? 0) - (statistics.get(a.id)?.[field] ?? 0)).slice(0, 4);
+      const receivers = [...people].sort((a, b) => (statistics.get(a.id)?.[field] ?? 0) - (statistics.get(b.id)?.[field] ?? 0)).slice(0, 5);
+      for (const donor of donors) {
+        for (let dayIndex = 0; dayIndex < plan.days.length; dayIndex += 1) {
+          const day = plan.days[dayIndex];
+          const slots: Array<Equipment | 0 | 1 | null> = shift === "morning" ? [...MORNING_EQUIPMENT] : shift === "evening" ? [0, 1] : [null];
+          for (const slot of slots) {
+            const assignedId = shift === "morning" ? day.morning[slot as Equipment] : shift === "evening" ? day.evening[slot as 0 | 1] : day.night;
+            if (assignedId !== donor.id || (shift === "night" && day.fallbackNight)) continue;
+            for (const receiver of receivers) {
+              if (receiver.id === donor.id || (statistics.get(receiver.id)?.[field] ?? 0) >= (statistics.get(donor.id)?.[field] ?? 0) - 1) continue;
+              const candidate = structuredClone(plan);
+              setAssignment(candidate, dayIndex, shift, slot, receiver.id);
+              const candidateErrors = validateSchedule(candidate, staff, unavailable, specialDays).filter(issue => issue.level === "error").length;
+              if (candidateErrors > currentErrors) continue;
+              const candidateCost = balanceCost(candidate, staff);
+              if (candidateCost + 0.01 < currentCost) {
+                plan.days = candidate.days;
+                currentCost = candidateCost;
+                currentErrors = candidateErrors;
+                improved = true;
+                break;
+              }
+            }
+            if (improved) break;
+          }
+          if (improved) break;
+        }
+        if (improved) break;
+      }
+      if (improved) break;
+    }
+    if (!improved) break;
+  }
 }
 
 export function analyzeNightCoverage(input: {

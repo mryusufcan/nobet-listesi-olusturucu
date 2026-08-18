@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateSchedule, planStatistics, validateSchedule, type StaffForSchedule } from "../shared/scheduling";
+import { balanceCost, balanceMetrics, generateSchedule, planStatistics, validateSchedule, type StaffForSchedule } from "../shared/scheduling";
 
 const people: StaffForSchedule[] = Array.from({ length: 12 }, (_, index) => ({
   id: index + 1,
@@ -65,6 +65,48 @@ describe("nöbet algoritması", () => {
     const statistics = planStatistics(plan, people);
     expect(statistics.every(entry => entry.evening > 0)).toBe(true);
     expect(statistics.every(entry => entry.night > 0)).toBe(true);
+    const totalValues = statistics.map(entry => entry.total);
+    const eveningValues = statistics.map(entry => entry.evening);
+    const nightValues = statistics.map(entry => entry.night);
+    expect(Math.max(...totalValues) - Math.min(...totalValues)).toBeLessThanOrEqual(2);
+    expect(Math.max(...eveningValues) - Math.min(...eveningValues)).toBeLessThanOrEqual(2);
+    expect(Math.max(...nightValues) - Math.min(...nightValues)).toBeLessThanOrEqual(2);
+  });
+
+  it("dokuz kişilik kısıtlı kadroda gece ve akşam yükünü dengede tutar", () => {
+    const compactTeam: StaffForSchedule[] = Array.from({ length: 9 }, (_, index) => {
+      const gender = index < 5 ? "male" : "female" as const;
+      return {
+        id: index + 1,
+        name: `Kadro ${index + 1}`,
+        active: true,
+        gender,
+        competencies: gender === "female" ? ["MR", "BT", "RÖNT-PORT", "RÖNTGEN", "RÖNT-MAMO"] : ["MR", "BT", "RÖNT-PORT", "RÖNTGEN"],
+        constraints: index === 5 ? [{ staffId: index + 1, rule: "blocked_shift", value: "night" }] : [],
+      };
+    });
+    const plan = generateSchedule({ year: 2026, month: 8, staff: compactTeam, unavailable: [], seed: 404 });
+    const statistics = planStatistics(plan, compactTeam);
+    const nightEligible = statistics.filter(entry => entry.staffId !== 6).map(entry => entry.night);
+    const eveningValues = statistics.map(entry => entry.evening);
+    expect(Math.max(...nightEligible) - Math.min(...nightEligible)).toBeLessThanOrEqual(2);
+    expect(Math.max(...eveningValues) - Math.min(...eveningValues)).toBeLessThanOrEqual(3);
+  });
+
+  it("yeniden atama aşaması toplam, akşam ve gece dağılım maliyetini azaltır", () => {
+    const compactTeam: StaffForSchedule[] = Array.from({ length: 9 }, (_, index) => {
+      const gender = index < 5 ? "male" : "female" as const;
+      return { id: index + 1, name: `Kadro ${index + 1}`, active: true, gender, competencies: gender === "female" ? ["MR", "BT", "RÖNT-PORT", "RÖNTGEN", "RÖNT-MAMO"] : ["MR", "BT", "RÖNT-PORT", "RÖNTGEN"], constraints: index === 5 ? [{ staffId: index + 1, rule: "blocked_shift", value: "night" }] : [] };
+    });
+    const before = generateSchedule({ year: 2026, month: 8, staff: compactTeam, unavailable: [], seed: 505, rebalance: false });
+    const after = generateSchedule({ year: 2026, month: 8, staff: compactTeam, unavailable: [], seed: 505 });
+    const beforeMetrics = balanceMetrics(before, compactTeam);
+    const afterMetrics = balanceMetrics(after, compactTeam);
+    expect(balanceCost(after, compactTeam)).toBeLessThan(balanceCost(before, compactTeam));
+    expect(afterMetrics.total).toBeLessThanOrEqual(beforeMetrics.total);
+    expect(afterMetrics.evening).toBeLessThanOrEqual(beforeMetrics.evening);
+    expect(afterMetrics.night).toBeLessThanOrEqual(beforeMetrics.night);
+    expect(validateSchedule(after, compactTeam, []).filter(issue => issue.level === "error").length).toBeLessThanOrEqual(validateSchedule(before, compactTeam, []).filter(issue => issue.level === "error").length);
   });
 
   it("normal gece adayı kalmadığında personel 6'yı son çare olarak atar", () => {
