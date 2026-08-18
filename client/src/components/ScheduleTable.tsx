@@ -1,42 +1,34 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EQUIPMENT, type Equipment, type SchedulePlan, type StaffForSchedule } from "../../../shared/scheduling";
 
-const weekdayShort = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
-const weekdayLong = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+const weekdayLabels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+const weekdayLong = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+type DisplayDay = SchedulePlan["days"][number] | null;
 
-function personName(id: number | null, staffById: Map<number, StaffForSchedule>) {
-  return id ? staffById.get(id)?.name ?? "Bilinmiyor" : "Atama yok";
-}
+function personName(id: number | null, staffById: Map<number, StaffForSchedule>) { return id ? staffById.get(id)?.name ?? "Bilinmiyor" : "Atama yok"; }
 
-function AssignmentCell({ value, staff, eligible, onChange, disabled }: {
-  value: number | null;
-  staff: StaffForSchedule[];
-  eligible: (person: StaffForSchedule) => boolean;
-  onChange: (value: number | null) => void;
-  disabled: boolean;
-}) {
+function AssignmentCell({ value, staff, eligible, onChange, disabled }: { value: number | null; staff: StaffForSchedule[]; eligible: (person: StaffForSchedule) => boolean; onChange: (value: number | null) => void; disabled: boolean }) {
   const choices = staff.filter(person => person.active && eligible(person));
   const selected = value ? String(value) : "empty";
   return <Select value={selected} disabled={disabled} onValueChange={next => onChange(next === "empty" ? null : Number(next))}><SelectTrigger className="h-9 min-w-[132px] border-0 bg-transparent px-2 text-xs font-medium shadow-none hover:bg-white focus:ring-1"><SelectValue>{value ? personName(value, new Map(staff.map(item => [item.id, item]))) : "—"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="empty">— Atama yok —</SelectItem>{choices.map(person => <SelectItem key={person.id} value={String(person.id)}>{person.name}</SelectItem>)}</SelectContent></Select>;
 }
 
 export function ScheduleTable({ plan, staff, editable, onPlanChange }: { plan: SchedulePlan; staff: StaffForSchedule[]; editable: boolean; onPlanChange: (plan: SchedulePlan) => void }) {
-  const groups = Array.from({ length: Math.ceil(plan.days.length / 7) }, (_, index) => plan.days.slice(index * 7, index * 7 + 7));
-  const update = (date: string, kind: "morning" | "evening" | "night", slot: Equipment | 0 | 1 | null, value: number | null) => {
-    const days = plan.days.map(day => {
-      if (day.date !== date) return day;
-      if (kind === "morning") return { ...day, morning: { ...day.morning, [slot as Equipment]: value } };
-      if (kind === "evening") { const evening: [number | null, number | null] = [...day.evening] as [number | null, number | null]; evening[slot as 0 | 1] = value; return { ...day, evening }; }
-      return { ...day, night: value };
-    });
-    onPlanChange({ ...plan, days });
-  };
-  const usedIds = (day: SchedulePlan["days"][number], current: number | null) => new Set([...Object.values(day.morning), ...day.evening, day.night].filter((id): id is number => id !== null && id !== current));
-  const eligibleFor = (day: SchedulePlan["days"][number], current: number | null, equipment?: Equipment) => (person: StaffForSchedule) => {
-    if (usedIds(day, current).has(person.id)) return false;
-    if (!equipment) return true;
-    if (!person.competencies.includes(equipment)) return false;
-    return equipment !== "RÖNT-MAMO" || person.gender === "female";
-  };
-  return <div className="grid gap-7">{groups.map((days, index) => <section key={days[0].date} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3"><div><p className="text-sm font-semibold text-slate-800">Hafta {index + 1}</p><p className="text-xs text-slate-500">{days[0].date} — {days.at(-1)?.date}</p></div><span className="rounded-full bg-[#e7f1fb] px-3 py-1 text-xs font-medium text-[#1f4d78]">Haftalık blok</span></div><div className="overflow-x-auto"><table className="min-w-full border-collapse text-left"><thead><tr className="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500"><th className="w-32 px-4 py-3">Vardiya</th><th className="w-32 px-4 py-3">Cihaz</th>{days.map(day => <th key={day.date} className="min-w-40 px-3 py-3 text-center"><span className="block">{weekdayShort[day.weekday]}</span><span className="font-semibold text-slate-700">{day.date.slice(8)}</span></th>)}</tr></thead><tbody>{EQUIPMENT.map((equipment, equipmentIndex) => <tr key={equipment} className="border-b border-slate-100 bg-[#fbfdff]"><td className="px-4 py-2 text-xs font-semibold text-[#1f4d78]">{equipmentIndex === 0 ? "08:00–16:00" : ""}</td><td className="px-4 py-2 text-xs font-semibold text-slate-700">{equipment}</td>{days.map(day => <td key={day.date} className="border-l border-slate-100 px-1 py-1">{day.weekday === 0 && equipment !== "MR" ? <span className="block px-3 py-2 text-xs text-slate-400">MR görevlisi kapsar</span> : <AssignmentCell disabled={!editable} staff={staff} value={day.morning[equipment]} eligible={eligibleFor(day, day.morning[equipment], equipment)} onChange={value => update(day.date, "morning", equipment, value)} />}</td>)}</tr>)}<tr className="border-b border-slate-100"><td rowSpan={2} className="px-4 py-2 text-xs font-semibold text-[#7a4b10]">16:00–24:00</td><td className="px-4 py-2 text-xs text-slate-500">1. kişi</td>{days.map(day => <td key={day.date} className="border-l border-slate-100 px-1 py-1"><AssignmentCell disabled={!editable} staff={staff} value={day.evening[0]} eligible={eligibleFor(day, day.evening[0])} onChange={value => update(day.date, "evening", 0, value)} /></td>)}</tr><tr className="border-b border-slate-100"><td className="px-4 py-2 text-xs text-slate-500">2. kişi</td>{days.map(day => <td key={day.date} className="border-l border-slate-100 px-1 py-1">{day.weekday === 0 ? <span className="block px-3 py-2 text-xs text-slate-400">Pazar tek kişi</span> : <AssignmentCell disabled={!editable} staff={staff} value={day.evening[1]} eligible={eligibleFor(day, day.evening[1])} onChange={value => update(day.date, "evening", 1, value)} />}</td>)}</tr><tr><td className="px-4 py-2 text-xs font-semibold text-[#643a80]">24:00–08:00</td><td className="px-4 py-2 text-xs text-slate-500">Gece</td>{days.map(day => <td key={day.date} className="border-l border-slate-100 px-1 py-1"><AssignmentCell disabled={!editable} staff={staff} value={day.night} eligible={eligibleFor(day, day.night)} onChange={value => update(day.date, "night", null, value)} /></td>)}</tr></tbody></table></div><div className="border-t border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-500">{days.map(day => <span className="mr-5" key={day.date}>{day.date.slice(8)} {weekdayLong[day.weekday]}</span>)}</div></section>)}</div>;
+  const firstWeekday = plan.days[0]?.weekday === 0 ? 6 : (plan.days[0]?.weekday ?? 1) - 1;
+  const padded: DisplayDay[] = [...Array.from({ length: firstWeekday }, () => null), ...plan.days];
+  while (padded.length % 7) padded.push(null);
+  const groups = Array.from({ length: padded.length / 7 }, (_, index) => padded.slice(index * 7, index * 7 + 7));
+  const update = (date: string, kind: "morning" | "evening" | "night", slot: Equipment | 0 | 1 | null, value: number | null) => onPlanChange({ ...plan, days: plan.days.map(day => {
+    if (day.date !== date) return day;
+    if (kind === "morning") return { ...day, morning: { ...day.morning, [slot as Equipment]: value } };
+    if (kind === "evening") { const evening: [number | null, number | null] = [...day.evening] as [number | null, number | null]; evening[slot as 0 | 1] = value; return { ...day, evening }; }
+    return { ...day, night: value };
+  }) });
+  const usedIds = (day: NonNullable<DisplayDay>, current: number | null) => new Set([...Object.values(day.morning), ...day.evening, day.night].filter((id): id is number => id !== null && id !== current));
+  const eligibleFor = (day: NonNullable<DisplayDay>, current: number | null, equipment?: Equipment) => (person: StaffForSchedule) => !usedIds(day, current).has(person.id) && (!equipment || (person.competencies.includes(equipment) && (equipment !== "RÖNT-MAMO" || person.gender === "female")));
+  const blank = <span className="block min-h-9" />;
+  return <div className="grid gap-7">{groups.map((days, index) => {
+    const actual = days.filter((day): day is NonNullable<DisplayDay> => day !== null);
+    return <section key={`week-${index}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3"><div><p className="text-sm font-semibold text-slate-800">Hafta {index + 1}</p><p className="text-xs text-slate-500">{actual[0]?.date} — {actual.at(-1)?.date}</p></div><span className="rounded-full bg-[#e7f1fb] px-3 py-1 text-xs font-medium text-[#1f4d78]">Pazartesi başlangıçlı</span></div><div className="overflow-x-auto"><table className="min-w-full border-collapse text-left"><thead><tr className="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500"><th className="w-32 px-4 py-3">Vardiya</th><th className="w-32 px-4 py-3">Cihaz</th>{days.map((day, dayIndex) => <th key={`${index}-${dayIndex}`} className="min-w-40 px-3 py-3 text-center"><span className="block">{weekdayLabels[dayIndex]}</span>{day && <><span className="font-semibold text-slate-700">{day.date.slice(8)}</span>{day.specialDayName && <span className="mt-1 block rounded bg-amber-100 px-1 py-0.5 text-[9px] normal-case text-amber-800">{day.specialDayName}</span>}</>}</th>)}</tr></thead><tbody>{EQUIPMENT.map((equipment, equipmentIndex) => <tr key={equipment} className="border-b border-slate-100 bg-sky-50/70"><td className="px-4 py-2 text-xs font-semibold text-sky-800">{equipmentIndex === 0 ? "08:00–16:00" : ""}</td><td className="px-4 py-2 text-xs font-semibold text-sky-700">{equipment}</td>{days.map((day, dayIndex) => <td key={`${dayIndex}-${equipment}`} className="border-l border-sky-100 px-1 py-1">{!day ? blank : day.weekday === 0 && equipment !== "MR" ? <span className="block px-3 py-2 text-xs text-sky-500">MR görevlisi kapsar</span> : <AssignmentCell disabled={!editable} staff={staff} value={day.morning[equipment]} eligible={eligibleFor(day, day.morning[equipment], equipment)} onChange={value => update(day.date, "morning", equipment, value)} />}</td>)}</tr>)}<tr className="border-b border-amber-100 bg-amber-50/80"><td rowSpan={2} className="px-4 py-2 text-xs font-semibold text-amber-800">16:00–24:00</td><td className="px-4 py-2 text-xs text-amber-700">1. kişi</td>{days.map((day, dayIndex) => <td key={`${dayIndex}-e1`} className="border-l border-amber-100 px-1 py-1">{day ? <AssignmentCell disabled={!editable} staff={staff} value={day.evening[0]} eligible={eligibleFor(day, day.evening[0])} onChange={value => update(day.date, "evening", 0, value)} /> : blank}</td>)}</tr><tr className="border-b border-amber-100 bg-amber-50/80"><td className="px-4 py-2 text-xs text-amber-700">2. kişi</td>{days.map((day, dayIndex) => <td key={`${dayIndex}-e2`} className="border-l border-amber-100 px-1 py-1">{!day ? blank : day.weekday === 0 ? <span className="block px-3 py-2 text-xs text-amber-600">Pazar tek kişi</span> : <AssignmentCell disabled={!editable} staff={staff} value={day.evening[1]} eligible={eligibleFor(day, day.evening[1])} onChange={value => update(day.date, "evening", 1, value)} />}</td>)}</tr><tr className="bg-violet-50/80"><td className="px-4 py-2 text-xs font-semibold text-violet-800">24:00–08:00</td><td className="px-4 py-2 text-xs text-violet-700">Gece</td>{days.map((day, dayIndex) => <td key={`${dayIndex}-night`} className="border-l border-violet-100 px-1 py-1">{day ? <AssignmentCell disabled={!editable} staff={staff} value={day.night} eligible={eligibleFor(day, day.night)} onChange={value => update(day.date, "night", null, value)} /> : blank}</td>)}</tr></tbody></table></div><div className="flex gap-4 border-t border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-500"><span className="font-medium text-sky-700">Sabah</span><span className="font-medium text-amber-700">Akşam</span><span className="font-medium text-violet-700">Gece</span></div></section>;
+  })}</div>;
 }

@@ -1,0 +1,30 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { AppTopbar } from "@/components/AppTopbar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { startLogin } from "@/const";
+import { trpc } from "@/lib/trpc";
+import { CalendarDays, CheckCircle2, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+
+export default function SpecialDays() {
+  const { isAuthenticated, loading } = useAuth();
+  const utils = trpc.useUtils();
+  const [date, setDate] = useState("");
+  const [name, setName] = useState("");
+  const [morningSlots, setMorningSlots] = useState(1);
+  const [eveningSlots, setEveningSlots] = useState(1);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const specialDays = trpc.schedule.specialDays.useQuery(undefined, { enabled: isAuthenticated });
+  const reset = () => { setDate(""); setName(""); setMorningSlots(1); setEveningSlots(1); setEditingId(null); };
+  const save = trpc.schedule.upsertSpecialDay.useMutation({ onSuccess: async () => { await utils.schedule.specialDays.invalidate(); toast.success(editingId ? "Özel gün şablonu güncellendi." : "Özel gün şablonu kaydedildi."); reset(); }, onError: error => toast.error(error.message) });
+  const remove = trpc.schedule.deleteSpecialDay.useMutation({ onSuccess: async () => { await utils.schedule.specialDays.invalidate(); toast.success("Özel gün şablonu kaldırıldı."); }, onError: error => toast.error(error.message) });
+  const submit = () => { if (!date || !name.trim()) { toast.error("Tarih ve şablon adı zorunludur."); return; } save.mutate({ date, name, morningSlots, eveningSlots }); };
+  const edit = (item: NonNullable<typeof specialDays.data>[number]) => { setEditingId(item.id ?? null); setDate(item.date); setName(item.name); setMorningSlots(item.morningSlots); setEveningSlots(item.eveningSlots); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  if (loading) return <div className="grid min-h-screen place-items-center bg-[#f5f8fc]"><Loader2 className="h-6 w-6 animate-spin text-[#1f4d78]" /></div>;
+  if (!isAuthenticated) return <div className="grid min-h-screen place-items-center bg-[#f5f8fc] p-6 text-center"><div><CalendarDays className="mx-auto h-10 w-10 text-[#2b689e]" /><h1 className="mt-4 text-xl font-semibold text-[#17324d]">Özel gün şablonları için giriş yapın</h1><Button className="mt-5" onClick={() => startLogin()}>Giriş yap</Button></div></div>;
+  return <div className="min-h-screen bg-[#f5f8fc]"><AppTopbar /><main className="mx-auto max-w-6xl px-4 py-7 sm:px-6"><section className="rounded-3xl bg-[#17324d] p-6 text-white"><p className="text-sm font-medium text-blue-200">ESNEK PLANLAMA</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Resmî tatil ve özel gün şablonları</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">Belirli tarihler için sabah ve akşam vardiyası kadro ihtiyacını kurumun standart günlerinden farklı tanımlayın. Gece vardiyası her zaman bir kişi olarak korunur.</p></section><section className="mt-6 grid gap-5 lg:grid-cols-[.85fr_1.15fr]"><Card className="border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base text-[#17324d]">{editingId ? "Özel gün şablonunu düzenle" : "Yeni şablon"}</CardTitle>{editingId && <Button variant="ghost" size="sm" onClick={reset}>Yeni şablon</Button>}</CardHeader><CardContent className="grid gap-4"><div className="grid gap-2"><Label>Tarih</Label><Input type="date" value={date} onChange={event => setDate(event.target.value)} /></div><div className="grid gap-2"><Label>Özel gün adı</Label><Input value={name} onChange={event => setName(event.target.value)} placeholder="Örn. Ramazan Bayramı 1. Gün" /></div><div className="grid grid-cols-2 gap-3"><div className="grid gap-2"><Label>Sabah kişi sayısı</Label><Input type="number" min="1" max="4" value={morningSlots} onChange={event => setMorningSlots(Math.min(4, Math.max(1, Number(event.target.value) || 1)))} /></div><div className="grid gap-2"><Label>Akşam kişi sayısı</Label><Input type="number" min="1" max="2" value={eveningSlots} onChange={event => setEveningSlots(Math.min(2, Math.max(1, Number(event.target.value) || 1)))} /></div></div><Button onClick={submit} disabled={save.isPending}><Plus className="mr-2 h-4 w-4" />{save.isPending ? "Kaydediliyor…" : editingId ? "Şablonu güncelle" : "Şablonu kaydet"}</Button></CardContent></Card><Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base text-[#17324d]">Tanımlı özel günler</CardTitle></CardHeader><CardContent className="p-0">{specialDays.isLoading ? <div className="p-8 text-center text-sm text-slate-500">Şablonlar yükleniyor…</div> : !specialDays.data?.length ? <div className="p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" /><p className="mt-3 font-medium text-slate-700">Tanımlı özel gün şablonu yok.</p><p className="mt-1 text-sm text-slate-500">Kayıtlı şablonlar seçilen tarihte standart vardiya kapasitesini değiştirir.</p></div> : <div className="divide-y divide-slate-100">{specialDays.data.map(item => <div key={item.id} className="flex items-start justify-between gap-4 p-4"><div><p className="font-medium text-slate-800">{item.name}</p><p className="mt-1 text-sm text-[#1f4d78]">{item.date} · Sabah <strong>{item.morningSlots}</strong> kişi · Akşam <strong>{item.eveningSlots}</strong> kişi · Gece <strong>1</strong> kişi</p></div><div className="flex"><Button variant="ghost" size="icon" className="text-slate-500 hover:text-[#1f4d78]" onClick={() => edit(item)} aria-label="Şablonu düzenle"><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="text-slate-500 hover:text-rose-600" onClick={() => remove.mutate({ id: item.id! })} aria-label="Şablonu kaldır"><Trash2 className="h-4 w-4" /></Button></div></div>)}</div>}</CardContent></Card></section></main></div>;
+}

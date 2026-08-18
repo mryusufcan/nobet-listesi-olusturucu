@@ -61,6 +61,16 @@ export const staffConstraints = mysqlTable("staffConstraints", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => [uniqueIndex("staff_constraint_unique").on(table.userId, table.staffId, table.rule, table.value)]);
 
+export const specialDays = mysqlTable("specialDays", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  date: varchar("date", { length: 10 }).notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  morningSlots: int("morningSlots").notNull(),
+  eveningSlots: int("eveningSlots").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => [uniqueIndex("special_day_unique").on(table.userId, table.date)]);
+
 export const schedules = mysqlTable("schedules", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

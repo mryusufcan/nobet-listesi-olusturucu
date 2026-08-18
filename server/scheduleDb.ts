@@ -1,6 +1,6 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { schedules, staff, staffConstraints, unavailabilities } from "../drizzle/schema";
-import type { ConstraintRule, Equipment, Gender, PersonalConstraint, SchedulePlan, StaffForSchedule } from "../shared/scheduling";
+import { schedules, specialDays, staff, staffConstraints, unavailabilities } from "../drizzle/schema";
+import type { ConstraintRule, Equipment, Gender, PersonalConstraint, SchedulePlan, SpecialDayTemplate, StaffForSchedule } from "../shared/scheduling";
 import { getDb } from "./db";
 
 type StaffRecordInput = {
@@ -144,6 +144,27 @@ export async function deleteUnavailability(userId: number, id: number) {
   const db = await getDb();
   if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
   await db.delete(unavailabilities).where(and(eq(unavailabilities.id, id), eq(unavailabilities.userId, userId)));
+}
+
+export async function listSpecialDays(userId: number, year?: number, month?: number): Promise<SpecialDayTemplate[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const rows = await db.select().from(specialDays).where(eq(specialDays.userId, userId)).orderBy(asc(specialDays.date));
+  const prefix = year && month ? `${year}-${String(month).padStart(2, "0")}` : undefined;
+  return rows.filter(row => !prefix || row.date.startsWith(prefix)).map(row => ({ id: row.id, date: row.date, name: row.name, morningSlots: row.morningSlots, eveningSlots: row.eveningSlots }));
+}
+
+export async function upsertSpecialDay(userId: number, input: Omit<SpecialDayTemplate, "id">) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  const values = { name: input.name.trim(), morningSlots: input.morningSlots, eveningSlots: input.eveningSlots };
+  await db.insert(specialDays).values({ userId, date: input.date, ...values }).onDuplicateKeyUpdate({ set: values });
+}
+
+export async function deleteSpecialDay(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
+  await db.delete(specialDays).where(and(eq(specialDays.id, id), eq(specialDays.userId, userId)));
 }
 
 export async function getSchedule(userId: number, year: number, month: number) {

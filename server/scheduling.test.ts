@@ -65,6 +65,20 @@ describe("nöbet algoritması", () => {
     expect(plan.days.flatMap(day => day.evening)).not.toContain(1);
   });
 
+  it("özel gün şablonundaki sabah ve akşam kadro sayılarını uygular", () => {
+    const plan = generateSchedule({
+      year: 2026,
+      month: 8,
+      staff: people,
+      unavailable: [],
+      specialDays: [{ date: "2026-08-03", name: "Resmî tatil", morningSlots: 1, eveningSlots: 1 }],
+    });
+    const holiday = plan.days.find(day => day.date === "2026-08-03")!;
+    expect(holiday.specialDayName).toBe("Resmî tatil");
+    expect(Object.values(holiday.morning).filter(value => value !== null)).toHaveLength(1);
+    expect(holiday.evening.filter(value => value !== null)).toHaveLength(1);
+  });
+
   it("izinli personeli ilgili güne atamaz", () => {
     const unavailable = [{ staffId: 1, date: "2026-08-05" }];
     const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable });

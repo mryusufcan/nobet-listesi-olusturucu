@@ -37,3 +37,10 @@
 - [x] Pazar sabahı tek kişi istisnası dışında aynı personele aynı gün birden fazla atama yapılmasını engelleme.
 - [x] Manuel çizelge düzenlemesinde seçilen personelin o günkü diğer vardiyalardan otomatik dışlanmasını sağlama.
 - [x] Gün içi tekrar atama ve mamografi cinsiyet kuralları için test ekleme.
+- [x] Resmî tatil ve özel günler için özelleştirilebilir vardiya şablonu veri modelini ekleme.
+- [x] Özel gün şablonu ekleme, düzenleme ve silme yönetim ekranını oluşturma.
+- [x] Özel gün şablonlarını otomatik atama ve doğrulama kurallarında uygulama.
+- [x] Mamografi uyarısını cinsiyet kuralı ile doğru eşleştirme ve hatalı yetkinlik notunu kaldırma.
+- [x] Haftalık çizelge bloklarını Pazartesi başlangıcına göre düzenleme.
+- [x] Sabah, akşam ve gece vardiyalarına ayırt edici ve erişilebilir tema uygulama.
+- [x] Yeni özel gün, hafta başlangıcı ve tema davranışlarını test edip kontrol noktası oluşturma.

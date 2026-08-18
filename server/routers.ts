@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { exportScheduleToExcel } from "./scheduleExport";
-import { deleteConstraint, deleteStaff, deleteUnavailability, getSchedule, importStaffRecords, listConstraints, listScheduleHistory, listStaff, listUnavailabilities, saveSchedule, upsertConstraint, upsertStaff, upsertUnavailability } from "./scheduleDb";
+import { deleteConstraint, deleteSpecialDay, deleteStaff, deleteUnavailability, getSchedule, importStaffRecords, listConstraints, listScheduleHistory, listSpecialDays, listStaff, listUnavailabilities, saveSchedule, upsertConstraint, upsertSpecialDay, upsertStaff, upsertUnavailability } from "./scheduleDb";
 
 const equipmentSchema = z.enum(EQUIPMENT);
 const personSchema = z.object({
@@ -28,6 +28,7 @@ const constraintSchema = z.object({
   value: z.string().min(1).max(80),
   note: z.string().trim().max(255).optional(),
 });
+const specialDaySchema = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), name: z.string().trim().min(2).max(120), morningSlots: z.number().int().min(1).max(4), eveningSlots: z.number().int().min(1).max(2) });
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -56,19 +57,22 @@ export const appRouter = router({
     unavailabilities: protectedProcedure.input(periodSchema.optional()).query(({ ctx, input }) => listUnavailabilities(ctx.user.id, input?.year, input?.month)),
     upsertUnavailability: protectedProcedure.input(z.object({ staffId: z.number().int().positive(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), type: z.enum(["leave", "report"]), note: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => upsertUnavailability(ctx.user.id, input)),
     deleteUnavailability: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteUnavailability(ctx.user.id, input.id)),
+    specialDays: protectedProcedure.input(periodSchema.optional()).query(({ ctx, input }) => listSpecialDays(ctx.user.id, input?.year, input?.month)),
+    upsertSpecialDay: protectedProcedure.input(specialDaySchema).mutation(async ({ ctx, input }) => { await upsertSpecialDay(ctx.user.id, input); return { success: true }; }),
+    deleteSpecialDay: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteSpecialDay(ctx.user.id, input.id); return { success: true }; }),
     get: protectedProcedure.input(periodSchema).query(({ ctx, input }) => getSchedule(ctx.user.id, input.year, input.month)),
     history: protectedProcedure.query(async ({ ctx }) => {
       const [history, people] = await Promise.all([listScheduleHistory(ctx.user.id), listStaff(ctx.user.id, true)]);
       return history.map(item => ({ id: item.id, year: item.year, month: item.month, createdAt: item.createdAt, statistics: planStatistics(item.plan, people) }));
     }),
     generate: protectedProcedure.input(periodSchema).mutation(async ({ ctx, input }) => {
-      const [people, unavailable] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.year, input.month)]);
-      const plan = generateSchedule({ year: input.year, month: input.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })) });
+      const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.year, input.month), listSpecialDays(ctx.user.id, input.year, input.month)]);
+      const plan = generateSchedule({ year: input.year, month: input.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays });
       return saveSchedule(ctx.user.id, plan);
     }),
     save: protectedProcedure.input(z.object({ plan: z.custom<SchedulePlan>() })).mutation(async ({ ctx, input }) => {
-      const [people, unavailable] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.plan.year, input.plan.month)]);
-      const plan = { ...input.plan, issues: validateSchedule(input.plan, people, unavailable.map(item => ({ staffId: item.staffId, date: item.date }))) };
+      const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.plan.year, input.plan.month), listSpecialDays(ctx.user.id, input.plan.year, input.plan.month)]);
+      const plan = { ...input.plan, issues: validateSchedule(input.plan, people, unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays) };
       if (plan.issues.some(issue => issue.level === "error")) {
         throw new Error("Çizelge kaydedilemedi: kritik vardiya kuralı ihlalleri düzeltilmelidir.");
       }

@@ -4,6 +4,7 @@ export const MORNING_EQUIPMENT = ["MR", "BT", "RÖNT-PORT", "RÖNT-MAMO"] as con
 export type Gender = "female" | "male" | "unspecified";
 export type ConstraintRule = "only_shift" | "blocked_shift" | "blocked_weekday" | "blocked_device" | "weekly_max";
 export type PersonalConstraint = { id?: number; staffId: number; rule: ConstraintRule; value: string; note?: string | null };
+export type SpecialDayTemplate = { id?: number; date: string; name: string; morningSlots: number; eveningSlots: number };
 
 export const FIXED_RULES = {
   morning: "08:00–16:00",
@@ -36,6 +37,7 @@ export type ScheduleDay = {
   morning: Record<Equipment, number | null>;
   evening: [number | null, number | null];
   night: number | null;
+  specialDayName?: string;
 };
 
 export type RuleIssue = {
@@ -155,6 +157,7 @@ export function generateSchedule(input: {
   month: number;
   staff: StaffForSchedule[];
   unavailable: Array<{ staffId: number; date: string }>;
+  specialDays?: SpecialDayTemplate[];
 }): SchedulePlan {
   const issues: RuleIssue[] = [];
   const staff = input.staff.filter(item => item.active);
@@ -168,6 +171,7 @@ export function generateSchedule(input: {
   const liveCounts = new Map<number, Counts>();
   const weeklyCounts = new Map<string, Map<number, number>>();
   const days: ScheduleDay[] = [];
+  const specialDayByDate = new Map((input.specialDays ?? []).map(item => [item.date, item]));
   const dayCount = new Date(Date.UTC(input.year, input.month, 0)).getUTCDate();
   let priorNight: number | null = null;
   let priorEvening = new Set<number>();
@@ -176,6 +180,8 @@ export function generateSchedule(input: {
     const date = localDateString(input.year, input.month, dayNumber);
     const weekday = new Date(Date.UTC(input.year, input.month - 1, dayNumber)).getUTCDay();
     const day = createEmptyDay(date, weekday);
+    const specialDay = specialDayByDate.get(date);
+    if (specialDay) day.specialDayName = specialDay.name;
     const unavailableToday = unavailable.get(date) ?? new Set<number>();
     const assigned = new Set<number>();
     const weekly = weeklyCounts.get(weekKey(date)) ?? new Map<number, number>();
@@ -208,20 +214,20 @@ export function generateSchedule(input: {
       weekly.set(person.id, (weekly.get(person.id) ?? 0) + 1);
     };
 
-    const morningTarget = weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots;
+    const morningTarget = specialDay?.morningSlots ?? (weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots);
     let morningAssigned = 0;
     const devicesByScarcity = [...MORNING_EQUIPMENT].sort((a, b) => availableFor("morning", a).length - availableFor("morning", b).length);
-    if (weekday === 0) {
+    if (morningTarget === 1) {
       const chosen = availableFor("morning", "MR").sort((a, b) => score(a, "morning") - score(b, "morning"))[0];
       if (!chosen) {
-        issues.push({ level: "error", date, message: "Pazar sabahı tüm cihazlar için uygun personel bulunamadı." });
+        issues.push({ level: "error", date, message: "Tek kişilik sabah şablonu için uygun personel bulunamadı." });
       } else {
         day.morning.MR = chosen.id;
         assign(chosen, "morning");
         morningAssigned = 1;
       }
     }
-    if (weekday !== 0) {
+    if (weekday !== 0 && morningTarget > 1) {
       const femalePair = devicesByScarcity
         .map(equipment => ({ equipment, people: availableFor("morning", equipment).filter(item => item.gender === "female") }))
         .find(item => item.people.length > 0);
@@ -247,7 +253,7 @@ export function generateSchedule(input: {
       issues.push({ level: "error", date, message: `Sabah vardiyasında ${morningTarget} kişi yerine ${morningAssigned} kişi atanabildi.` });
     }
 
-    const eveningTarget = weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots;
+    const eveningTarget = specialDay?.eveningSlots ?? (weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots);
     for (let slot = 0; slot < eveningTarget; slot += 1) {
       const chosen = availableFor("evening").sort((a, b) => score(a, "evening") - score(b, "evening"))[0];
       if (!chosen) {
@@ -283,6 +289,7 @@ export function validateSchedule(
   plan: Pick<SchedulePlan, "days">,
   staff: StaffForSchedule[],
   unavailable: Array<{ staffId: number; date: string }>,
+  specialDays: SpecialDayTemplate[] = [],
 ): RuleIssue[] {
   const issues: RuleIssue[] = [];
   const byId = new Map(staff.map(item => [item.id, item]));
@@ -295,15 +302,17 @@ export function validateSchedule(
   const weekly = new Map<string, Map<number, number>>();
   let previousNight: number | null = null;
   let previousEvening: number[] = [];
+  const specialDayByDate = new Map(specialDays.map(item => [item.date, item]));
 
   for (const day of plan.days) {
     const morningAssignments = EQUIPMENT.map(equipment => day.morning[equipment]).filter((value): value is number => value !== null);
     const morningIds = morningAssignments;
-    const expectedMorning = day.weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots;
+    const specialDay = specialDayByDate.get(day.date);
+    const expectedMorning = specialDay?.morningSlots ?? (day.weekday === 0 ? FIXED_RULES.sundayMorningSlots : FIXED_RULES.weekdayMorningSlots);
     if (morningIds.length !== expectedMorning) {
       issues.push({ level: "error", date: day.date, message: `Sabah vardiyasında ${expectedMorning} cihaz bazlı atama olmalıdır.` });
     }
-    const expectedEvening = day.weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots;
+    const expectedEvening = specialDay?.eveningSlots ?? (day.weekday === 0 ? FIXED_RULES.sundayEveningSlots : FIXED_RULES.eveningSlots);
     if (day.evening.filter(value => value !== null).length !== expectedEvening) {
       issues.push({ level: "error", date: day.date, message: `Akşam vardiyasına ${expectedEvening} personel atanmalıdır.` });
     }
@@ -326,12 +335,9 @@ export function validateSchedule(
     MORNING_EQUIPMENT.forEach(equipment => {
       const id = day.morning[equipment];
       const person = id ? byId.get(id) : undefined;
-      if (person && !person.competencies.includes(equipment)) {
-        issues.push({ level: "error", date: day.date, message: `${person.name}, ${equipment} cihazında yetkin değil.` });
-      }
-      if (person && !allowsEquipment(person, equipment)) {
-        issues.push({ level: "error", date: day.date, message: equipment === "RÖNT-MAMO" ? `${person.name} erkek olduğu için Mamografi cihazına atanamaz.` : `${person.name} için ${equipment} cihazı özel kısıtla kapatılmış.` });
-      }
+      if (person && equipment === "RÖNT-MAMO" && person.gender !== "female") issues.push({ level: "error", date: day.date, message: `${person.name} erkek olduğu için Mamografi cihazına atanamaz.` });
+      else if (person && !person.competencies.includes(equipment)) issues.push({ level: "error", date: day.date, message: `${person.name}, ${equipment} cihazında yetkin değil.` });
+      else if (person && !allowsEquipment(person, equipment)) issues.push({ level: "error", date: day.date, message: `${person.name} için ${equipment} cihazı özel kısıtla kapatılmış.` });
       if (person && !allowsShift(person, "morning", day.date)) {
         issues.push({ level: "error", date: day.date, message: `${person.name} sabah vardiyası için tanımlı kısıta uymuyor.` });
       }
