@@ -195,6 +195,7 @@ export function generateSchedule(input: {
       day.morning = { ...lockedDay.morning };
       day.evening = [...lockedDay.evening] as [number | null, number | null];
       day.night = lockedDay.night;
+      day.fallbackNight = lockedDay.fallbackNight;
     }
     const specialDay = specialDayByDate.get(date);
     if (specialDay) day.specialDayName = specialDay.name;
@@ -247,6 +248,48 @@ export function generateSchedule(input: {
     MORNING_EQUIPMENT.forEach(equipment => registerLocked(day.morning[equipment], "morning", equipment));
     day.evening.forEach(id => registerLocked(id, "evening"));
     registerLocked(day.night, "night");
+    const assignNightWhenNeeded = () => {
+      if (day.night !== null) return;
+      const nightCandidates = availableFor("night");
+      const chosenNight = mandatoryNight && nightCandidates.some(item => item.id === mandatoryNight.id)
+        ? mandatoryNight
+        : nightCandidates.sort((a, b) => score(a, "night") - score(b, "night"))[0];
+      if (chosenNight) {
+        day.night = chosenNight.id;
+        assign(chosenNight, "night");
+        return;
+      }
+      const isSafeNightFallback = (item: StaffForSchedule) => !unavailableToday.has(item.id)
+        && !assigned.has(item.id)
+        && priorNight !== item.id
+        && allowsShift(item, "night", date);
+      const fallbackSix = staff.find(item => item.id === 6 && isSafeNightFallback(item));
+      if (fallbackSix) {
+        day.night = fallbackSix.id;
+        day.fallbackNight = true;
+        assign(fallbackSix, "night");
+        issues.push({ level: "warning", date, message: "Gece vardiyası boş kalmasın diye personel ID 6 güvenli son çare olarak atandı." });
+        return;
+      }
+      const overflowNight = staff.filter(item => item.id !== 6 && isSafeNightFallback(item))
+        .sort((a, b) => score(a, "night") - score(b, "night"))[0];
+      if (overflowNight) {
+        day.night = overflowNight.id;
+        day.fallbackNight = true;
+        assign(overflowNight, "night");
+        issues.push({ level: "warning", date, message: `Gece vardiyası boş kalmasın diye ${overflowNight.name} haftalık üst sınır istisnasıyla atandı.` });
+        return;
+      }
+      const six = staff.find(item => item.id === 6);
+      const sixReason = !six ? "aktif personel havuzunda bulunmuyor"
+        : unavailableToday.has(6) ? "izinli veya raporlu"
+          : assigned.has(6) ? "aynı gün başka vardiyada görevli"
+            : priorNight === 6 ? "önceki gece vardiyası sonrası dinlenmede"
+              : !allowsShift(six, "night", date) ? "gece vardiyası kısıtına uygun değil"
+                : "kullanılamıyor";
+      issues.push({ level: "error", date, message: `Gece vardiyası için uygun personel bulunamadı. Personel ID 6 ${sixReason}.` });
+    };
+    assignNightWhenNeeded();
     const devicesByScarcity = [...MORNING_EQUIPMENT].sort((a, b) => availableFor("morning", a).length - availableFor("morning", b).length);
     if (morningTarget === 1 && morningAssigned === 0) {
       const chosen = availableFor("morning", "MR").sort((a, b) => score(a, "morning", "MR") - score(b, "morning", "MR"))[0];
@@ -294,31 +337,6 @@ export function generateSchedule(input: {
       }
       day.evening[slot as 0 | 1] = chosen.id;
       assign(chosen, "evening");
-    }
-
-    if (day.night === null) {
-      const nightCandidates = availableFor("night");
-      const chosenNight = mandatoryNight && nightCandidates.some(item => item.id === mandatoryNight.id)
-        ? mandatoryNight
-        : nightCandidates.sort((a, b) => score(a, "night") - score(b, "night"))[0];
-      if (!chosenNight) {
-        const fallbackNight = staff.find(item => item.id === 6
-          && !unavailableToday.has(item.id)
-          && !assigned.has(item.id)
-          && priorNight !== item.id
-          && allowsShift(item, "night", date));
-        if (!fallbackNight) {
-          issues.push({ level: "error", date, message: "Gece vardiyası için uygun personel bulunamadı." });
-        } else {
-          day.night = fallbackNight.id;
-          day.fallbackNight = true;
-          assign(fallbackNight, "night");
-          issues.push({ level: "warning", date, message: "Gece vardiyası boş kalmasın diye personel ID 6 son çare olarak atandı." });
-        }
-      } else {
-        day.night = chosenNight.id;
-        assign(chosenNight, "night");
-      }
     }
 
     priorNight = day.night;
@@ -405,9 +423,9 @@ export function validateSchedule(
       values.set(id, (values.get(id) ?? 0) + 1);
       weekly.set(weekKey(day.date), values);
     });
-    if (day.fallbackNight && day.night === 6) {
+    if (day.fallbackNight && day.night !== null) {
       const values = fallbackNights.get(weekKey(day.date)) ?? new Map<number, number>();
-      values.set(6, (values.get(6) ?? 0) + 1);
+      values.set(day.night, (values.get(day.night) ?? 0) + 1);
       fallbackNights.set(weekKey(day.date), values);
     }
     previousNight = day.night;

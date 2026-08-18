@@ -88,8 +88,46 @@ describe("nöbet algoritması", () => {
     const fallbackDay = plan.days.find(day => day.date === "2026-08-30")!;
     expect(fallbackDay.night).toBe(6);
     expect(fallbackDay.fallbackNight).toBe(true);
-    expect(plan.issues.some(issue => issue.level === "warning" && issue.date === "2026-08-30" && issue.message.includes("son çare"))).toBe(true);
-    expect(validateSchedule(plan, people, unavailable, specialDays).filter(issue => issue.level === "error")).toHaveLength(0);
+    expect(plan.issues.some(issue => issue.level === "warning" && issue.date === "2026-08-30" && issue.message.includes("personel ID 6 güvenli son çare"))).toBe(true);
+    expect(validateSchedule(plan, people, unavailable, specialDays).filter(issue => issue.level === "error" && issue.date === "2026-08-30")).toEqual([]);
+  });
+
+  it("personel 6 aynı gün görevli veya önceki gece çalışmışsa güvenlik kuralını ihlal ederek geceye atanmaz", () => {
+    const lockedPlan = {
+      days: [
+        {
+          date: "2026-08-22",
+          weekday: 6,
+          morning: { MR: null, BT: null, "RÖNT-PORT": null, RÖNTGEN: null, "RÖNT-MAMO": null },
+          evening: [null, null] as [number | null, number | null],
+          night: 6,
+        },
+        {
+          date: "2026-08-23",
+          weekday: 0,
+          morning: { MR: 6, BT: null, "RÖNT-PORT": null, RÖNTGEN: null, "RÖNT-MAMO": null },
+          evening: [1, null] as [number | null, number | null],
+          night: null,
+        },
+      ],
+    };
+    const unavailable = [
+      ...Array.from({ length: 21 }, (_, offset) => ({ staffId: 6, date: `2026-08-${String(offset + 1).padStart(2, "0")}` })),
+      ...people.filter(person => person.id !== 1 && person.id !== 6).map(person => ({ staffId: person.id, date: "2026-08-23" })),
+    ];
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable, lockedPlan, seed: 17 });
+    const emergencyDay = plan.days.find(day => day.date === "2026-08-23")!;
+    expect(emergencyDay.night).toBeNull();
+    expect(plan.issues.some(issue => issue.level === "error" && issue.date === "2026-08-23" && issue.message.includes("aynı gün başka vardiyada görevli"))).toBe(true);
+    expect(validateSchedule(plan, people, unavailable).some(issue => issue.level === "error" && issue.date === "2026-08-23")).toBe(true);
+  });
+
+  it("personel 6 da izinliyse boş gece vardiyasının güvenlik nedeniyle oluştuğunu açıkça bildirir", () => {
+    const unavailable = people.map(person => ({ staffId: person.id, date: "2026-08-12" }));
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable, seed: 23 });
+    const day = plan.days.find(item => item.date === "2026-08-12")!;
+    expect(day.night).toBeNull();
+    expect(plan.issues.some(issue => issue.level === "error" && issue.date === "2026-08-12" && issue.message.includes("izinli veya raporlu"))).toBe(true);
   });
 
   it("aynı personelin aynı gün birden fazla vardiyaya yazılmasını hata olarak bildirir", () => {

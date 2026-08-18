@@ -74,3 +74,7 @@
 - [x] Yeni taslak üretiminin mevcut listeyi kalıcı olarak değiştirmediğini test edip doğrulama.
 - [x] Normal gece adayları tükendiğinde personel ID 6 için güvenli son çare ataması ekleme.
 - [x] Son çare gece atamasını izin, günlük tek vardiya ve dinlenme kurallarını koruyacak şekilde test etme.
+- [x] Normal gece adayları tükendiğinde haftalık üst sınırı esneten güvenli yedek gece ataması ekleme.
+- [x] Personel 6'yı güvenlik kısıtlarını koruyarak gece vardiyası için açık son çare önceliğiyle modelleme.
+- [x] Personel 6 uygunsuz olduğunda izin, günlük vardiya, dinlenme veya vardiya kısıtı gerekçesini açık hata olarak raporlama.
+- [x] Personel 6 önceliği ile izinli/uygunsuz durumlarını ek testlerle doğrulama.
