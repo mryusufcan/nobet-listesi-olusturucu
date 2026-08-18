@@ -3,7 +3,7 @@ name: GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ["pages/**", ".github/workflows/pages.yml"]
+    paths: ["github-static/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -26,6 +26,6 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: pages
+          path: github-static
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -8,7 +8,7 @@ Uygulama; Express sunucusu, tRPC API'si, Manus OAuth oturumu ve MySQL/TiDB verit
 
 <https://nobetlist-vbfkk97a.manus.space>
 
-GitHub Pages, `pages/` klasöründeki statik karşılama/yönlendirme sayfasını yayınlar.
+GitHub Pages, `github-static/` klasöründeki bağımsız statik uygulamayı yayınlar. Bu sürüm giriş ve veritabanı kullanmaz; verileri yalnızca kullanıcının tarayıcısının yerel depolamasında tutar.
 
 ## Yerel çalışma
 

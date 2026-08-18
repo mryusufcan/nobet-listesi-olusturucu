@@ -94,3 +94,5 @@
 - [ ] GitHub Pages yayınını etkinleştirip adresini doğrulama.
 - [ ] Tam kaynak kodu, testler ve yapılandırma dosyalarını GitHub deposuna aktarma.
 - [ ] Yerel çalışma ve sunucu/veritabanı gerektiren tam işlevli dağıtım yönergelerini ekleme.
+- [ ] Mevcut Manus uygulamasına dokunmadan bağımsız statik GitHub sürümünü ayrı klasörde oluşturma.
+- [ ] Statik sürümde personel, izin ve çizelge verilerini tarayıcı yerel depolamasında saklama.
