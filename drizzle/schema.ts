@@ -36,6 +36,7 @@ export const staff = mysqlTable("staff", {
   historicalMorning: int("historicalMorning").default(0).notNull(),
   historicalEvening: int("historicalEvening").default(0).notNull(),
   historicalNight: int("historicalNight").default(0).notNull(),
+  deletedAt: timestamp("deletedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => [uniqueIndex("staff_owner_name_unique").on(table.userId, table.name)]);

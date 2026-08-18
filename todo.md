@@ -28,3 +28,5 @@
 - [x] Pazartesi–Cumartesi sabah vardiyasını MR, BT, Portable ve Mamografi için birer kişi; Pazar sabahını tek kişi olacak şekilde güncelleme.
 - [x] Pazartesi–Cumartesi akşam vardiyasını iki kişi, Pazar akşam vardiyasını tek kişi olacak şekilde güncelleme.
 - [x] Yeni vardiya kuralları için algoritma ve doğrulama testleri ekleme.
+- [x] Geçmiş çizelgede atanmış personellerin geçmiş veriyi koruyarak silinebilmesini sağlama.
+- [x] Güncellenen personel silme davranışını test etme ve kontrol noktası oluşturma.

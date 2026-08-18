@@ -58,7 +58,7 @@ export const appRouter = router({
     deleteUnavailability: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteUnavailability(ctx.user.id, input.id)),
     get: protectedProcedure.input(periodSchema).query(({ ctx, input }) => getSchedule(ctx.user.id, input.year, input.month)),
     history: protectedProcedure.query(async ({ ctx }) => {
-      const [history, people] = await Promise.all([listScheduleHistory(ctx.user.id), listStaff(ctx.user.id)]);
+      const [history, people] = await Promise.all([listScheduleHistory(ctx.user.id), listStaff(ctx.user.id, true)]);
       return history.map(item => ({ id: item.id, year: item.year, month: item.month, createdAt: item.createdAt, statistics: planStatistics(item.plan, people) }));
     }),
     generate: protectedProcedure.input(periodSchema).mutation(async ({ ctx, input }) => {

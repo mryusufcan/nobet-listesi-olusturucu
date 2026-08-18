@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { schedules, staff, staffConstraints, unavailabilities } from "../drizzle/schema";
 import type { ConstraintRule, Equipment, Gender, PersonalConstraint, SchedulePlan, StaffForSchedule } from "../shared/scheduling";
 import { getDb } from "./db";
@@ -28,10 +28,10 @@ function toScheduleStaff(row: typeof staff.$inferSelect): StaffForSchedule {
   };
 }
 
-export async function listStaff(userId: number) {
+export async function listStaff(userId: number, includeArchived = false) {
   const db = await getDb();
   if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
-  const rows = await db.select().from(staff).where(eq(staff.userId, userId)).orderBy(asc(staff.name));
+  const rows = await db.select().from(staff).where(includeArchived ? eq(staff.userId, userId) : and(eq(staff.userId, userId), isNull(staff.deletedAt))).orderBy(asc(staff.name));
   const constraints = await listConstraints(userId);
   return rows.map(row => ({ ...toScheduleStaff(row), constraints: constraints.filter(item => item.staffId === row.id) }));
 }
@@ -72,6 +72,7 @@ export async function upsertStaff(userId: number, input: StaffRecordInput & { id
     historicalMorning: input.historicalMorning ?? 0,
     historicalEvening: input.historicalEvening ?? 0,
     historicalNight: input.historicalNight ?? 0,
+    deletedAt: null,
   };
   if (input.id) {
     await db.update(staff).set(values).where(and(eq(staff.id, input.id), eq(staff.userId, userId)));
@@ -96,6 +97,7 @@ export async function importStaffRecords(userId: number, records: StaffRecordInp
       historicalMorning: record.historicalMorning ?? 0,
       historicalEvening: record.historicalEvening ?? 0,
       historicalNight: record.historicalNight ?? 0,
+      deletedAt: null,
     };
     await db.insert(staff).values({ userId, ...values }).onDuplicateKeyUpdate({ set: values });
   }
@@ -115,11 +117,12 @@ export async function deleteStaff(userId: number, staffId: number) {
   if (!db) throw new Error("Veritabanı bağlantısı kurulamadı.");
   const ownerSchedules = await db.select({ plan: schedules.plan }).from(schedules).where(eq(schedules.userId, userId));
   const isUsedInHistory = ownerSchedules.some(record => planUsesStaff(JSON.parse(record.plan) as SchedulePlan, staffId));
-  if (isUsedInHistory) {
-    throw new Error("Bu personel geçmiş çizelgelerde atanmış. Geçmiş kayıtların bütünlüğünü korumak için silinemez; personeli pasife alabilirsiniz.");
-  }
   await db.delete(unavailabilities).where(and(eq(unavailabilities.userId, userId), eq(unavailabilities.staffId, staffId)));
   await db.delete(staffConstraints).where(and(eq(staffConstraints.userId, userId), eq(staffConstraints.staffId, staffId)));
+  if (isUsedInHistory) {
+    await db.update(staff).set({ active: false, deletedAt: new Date() }).where(and(eq(staff.userId, userId), eq(staff.id, staffId)));
+    return;
+  }
   await db.delete(staff).where(and(eq(staff.userId, userId), eq(staff.id, staffId)));
 }
 
