@@ -78,3 +78,10 @@
 - [x] Personel 6'yı güvenlik kısıtlarını koruyarak gece vardiyası için açık son çare önceliğiyle modelleme.
 - [x] Personel 6 uygunsuz olduğunda izin, günlük vardiya, dinlenme veya vardiya kısıtı gerekçesini açık hata olarak raporlama.
 - [x] Personel 6 önceliği ile izinli/uygunsuz durumlarını ek testlerle doğrulama.
+- [x] Geceyi erken planlamanın dağılım ve gündüz vardiyası etkisini geri düzenleyerek planlama hatalarını azaltma.
+- [x] Zorunlu son çare atamalarını çizelgede farklı renkle ve açıklamasıyla vurgulama.
+- [x] Zorunlu atamalar için taslakta yönetici onay kutusu ekleyip kaydetme akışına bağlama.
+- [x] Liste oluşturma öncesinde gece vardiyası boşluk olasılığını hesaplayan analiz bölümü ekleme.
+- [x] Dağılım, zorunlu atama görünürlüğü/onayı ve gece riski analizini test etme.
+- [x] Akşam ve gece vardiyalarında kişi bazlı hedef dağılımı güçlendirip sıfır atama dengesizliğini azaltma.
+- [x] Gece riski analiz bileşenini tamamlayıp planlama ekranına bağlama.

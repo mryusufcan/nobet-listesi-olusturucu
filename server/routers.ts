@@ -1,6 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
-import { EQUIPMENT, generateSchedule, planStatistics, type SchedulePlan, validateSchedule } from "../shared/scheduling";
+import { EQUIPMENT, analyzeNightCoverage, generateSchedule, planStatistics, type SchedulePlan, validateSchedule } from "../shared/scheduling";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -61,6 +61,10 @@ export const appRouter = router({
     upsertSpecialDay: protectedProcedure.input(specialDaySchema).mutation(async ({ ctx, input }) => { await upsertSpecialDay(ctx.user.id, input); return { success: true }; }),
     deleteSpecialDay: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteSpecialDay(ctx.user.id, input.id); return { success: true }; }),
     get: protectedProcedure.input(periodSchema).query(({ ctx, input }) => getSchedule(ctx.user.id, input.year, input.month)),
+    nightRisk: protectedProcedure.input(periodSchema).query(async ({ ctx, input }) => {
+      const [people, unavailable] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.year, input.month)]);
+      return { days: analyzeNightCoverage({ year: input.year, month: input.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })) }) };
+    }),
     history: protectedProcedure.query(async ({ ctx }) => {
       const [history, people] = await Promise.all([listScheduleHistory(ctx.user.id), listStaff(ctx.user.id, true)]);
       return history.map(item => ({ id: item.id, year: item.year, month: item.month, createdAt: item.createdAt, statistics: planStatistics(item.plan, people) }));
@@ -79,6 +83,7 @@ export const appRouter = router({
     }),
     save: protectedProcedure.input(z.object({ plan: z.custom<SchedulePlan>() })).mutation(async ({ ctx, input }) => {
       const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.plan.year, input.plan.month), listSpecialDays(ctx.user.id, input.plan.year, input.plan.month)]);
+      if (input.plan.days.some(day => day.fallbackNight) && !input.plan.forcedAssignmentsApproved) throw new Error("Zorunlu gece atamaları için yönetici onayı gereklidir.");
       const plan = { ...input.plan, issues: validateSchedule(input.plan, people, unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays) };
       return saveSchedule(ctx.user.id, plan);
     }),

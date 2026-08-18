@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateSchedule, validateSchedule, type StaffForSchedule } from "../shared/scheduling";
+import { generateSchedule, planStatistics, validateSchedule, type StaffForSchedule } from "../shared/scheduling";
 
 const people: StaffForSchedule[] = Array.from({ length: 12 }, (_, index) => ({
   id: index + 1,
@@ -60,6 +60,13 @@ describe("nöbet algoritması", () => {
     expect(validateSchedule(secondPlan, people, []).filter(issue => issue.level === "error")).toHaveLength(0);
   });
 
+  it("uygun personelleri akşam ve gece vardiyalarında sıfır görevde bırakmaz", () => {
+    const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [], seed: 303 });
+    const statistics = planStatistics(plan, people);
+    expect(statistics.every(entry => entry.evening > 0)).toBe(true);
+    expect(statistics.every(entry => entry.night > 0)).toBe(true);
+  });
+
   it("normal gece adayı kalmadığında personel 6'yı son çare olarak atar", () => {
     const lockedPlan = {
       days: [
@@ -70,6 +77,13 @@ describe("nöbet algoritması", () => {
         evening: [null, null] as [number | null, number | null],
         night: null,
         })),
+        {
+          date: "2026-08-29",
+          weekday: 6,
+          morning: { MR: null, BT: null, "RÖNT-PORT": null, RÖNTGEN: null, "RÖNT-MAMO": null },
+          evening: [null, null] as [number | null, number | null],
+          night: 4,
+        },
         {
           date: "2026-08-30",
           weekday: 0,

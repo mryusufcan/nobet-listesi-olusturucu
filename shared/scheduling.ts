@@ -47,12 +47,15 @@ export type RuleIssue = {
   message: string;
 };
 
+export type NightRisk = { date: string; candidateCount: number; level: "safe" | "watch" | "critical" };
+
 export type SchedulePlan = {
   year: number;
   month: number;
   days: ScheduleDay[];
   issues: RuleIssue[];
   createdAt: string;
+  forcedAssignmentsApproved?: boolean;
 };
 
 type Counts = { total: number; morning: number; evening: number; night: number };
@@ -225,7 +228,13 @@ export function generateSchedule(input: {
       const rotationKey = `${item.id}:${weekday}:${shift}:${equipment ?? "genel"}`;
       const repetition = recurringAssignments.get(rotationKey) ?? 0;
       const tieBreakKey = `${item.id}:${date}:${shift}:${equipment ?? "genel"}`;
-      return baseline * 100 + specific * 24 + week * 7 + repetition * 340 + seededTieBreak(input.seed ?? 0, tieBreakKey);
+      const canWorkEvening = allowsShift(item, "evening", date);
+      const canWorkNight = allowsShift(item, "night", date);
+      const eveningDeficit = dayNumber > 7 && canWorkEvening && past.evening + current.evening === 0 ? 1 : 0;
+      const nightDeficit = dayNumber > 10 && canWorkNight && past.night + current.night === 0 ? 1 : 0;
+      const reservationPenalty = shift === "morning" ? (eveningDeficit * 260) + (nightDeficit * 170) : 0;
+      const shiftWeight = shift === "morning" ? 26 : 190;
+      return baseline * 100 + specific * shiftWeight + reservationPenalty + week * 7 + repetition * 340 + seededTieBreak(input.seed ?? 0, tieBreakKey);
     };
 
     const assign = (person: StaffForSchedule, shift: "morning" | "evening" | "night", equipment?: Equipment) => {
@@ -289,7 +298,6 @@ export function generateSchedule(input: {
                 : "kullanılamıyor";
       issues.push({ level: "error", date, message: `Gece vardiyası için uygun personel bulunamadı. Personel ID 6 ${sixReason}.` });
     };
-    assignNightWhenNeeded();
     const devicesByScarcity = [...MORNING_EQUIPMENT].sort((a, b) => availableFor("morning", a).length - availableFor("morning", b).length);
     if (morningTarget === 1 && morningAssigned === 0) {
       const chosen = availableFor("morning", "MR").sort((a, b) => score(a, "morning", "MR") - score(b, "morning", "MR"))[0];
@@ -338,6 +346,7 @@ export function generateSchedule(input: {
       day.evening[slot as 0 | 1] = chosen.id;
       assign(chosen, "evening");
     }
+    assignNightWhenNeeded();
 
     priorNight = day.night;
     priorEvening = new Set(day.evening.filter((value): value is number => value !== null));
@@ -347,6 +356,38 @@ export function generateSchedule(input: {
   const plan: SchedulePlan = { year: input.year, month: input.month, days, issues, createdAt: new Date().toISOString() };
   plan.issues.push(...validateSchedule(plan, input.staff, input.unavailable, input.specialDays));
   return plan;
+}
+
+export function analyzeNightCoverage(input: {
+  year: number;
+  month: number;
+  staff: StaffForSchedule[];
+  unavailable: Array<{ staffId: number; date: string }>;
+}): NightRisk[] {
+  const unavailableByDate = new Map<string, Set<number>>();
+  input.unavailable.forEach(item => {
+    const values = unavailableByDate.get(item.date) ?? new Set<number>();
+    values.add(item.staffId);
+    unavailableByDate.set(item.date, values);
+  });
+  const activeStaff = input.staff.filter(item => item.active);
+  const weeklyCounts = new Map<string, Map<number, number>>();
+  const risks: NightRisk[] = [];
+  let priorNight: number | null = null;
+  const dayCount = new Date(Date.UTC(input.year, input.month, 0)).getUTCDate();
+  for (let dayNumber = 1; dayNumber <= dayCount; dayNumber += 1) {
+    const date = localDateString(input.year, input.month, dayNumber);
+    const weekly = weeklyCounts.get(weekKey(date)) ?? new Map<number, number>();
+    weeklyCounts.set(weekKey(date), weekly);
+    const candidates = activeStaff.filter(item => !unavailableByDate.get(date)?.has(item.id) && priorNight !== item.id && allowsShift(item, "night", date) && (weekly.get(item.id) ?? 0) < weeklyMaximum(item));
+    risks.push({ date, candidateCount: candidates.length, level: candidates.length === 0 ? "critical" : candidates.length <= 2 ? "watch" : "safe" });
+    const selected = candidates.sort((a, b) => (weekly.get(a.id) ?? 0) - (weekly.get(b.id) ?? 0) || staffCount(a).night - staffCount(b).night)[0];
+    if (selected) {
+      weekly.set(selected.id, (weekly.get(selected.id) ?? 0) + 1);
+      priorNight = selected.id;
+    } else priorNight = null;
+  }
+  return risks;
 }
 
 export function validateSchedule(

@@ -52,6 +52,14 @@ describe("schedule generate ve save", () => {
     expect(db.saveSchedule).not.toHaveBeenCalled();
   });
 
+  it("gece kapsam riskini üretimden önce döndürür", async () => {
+    db.listStaff.mockResolvedValue(staff);
+    db.listUnavailabilities.mockResolvedValue([]);
+    const result = await appRouter.createCaller(context()).schedule.nightRisk({ year: 2026, month: 8 });
+    expect(result.days).toHaveLength(31);
+    expect(result.days.every(day => day.candidateCount > 0)).toBe(true);
+  });
+
   it("kritik doğrulama notları bulunan taslağı hata fırlatmadan kaydeder", async () => {
     const plan = generateSchedule({ year: 2026, month: 8, staff, unavailable: [] });
     plan.days[0].night = null;
@@ -62,6 +70,19 @@ describe("schedule generate ve save", () => {
     const result = await appRouter.createCaller(context()).schedule.save({ plan });
     expect(result.plan.issues.some(issue => issue.level === "error" && issue.message.includes("Gece vardiyasına"))).toBe(true);
     expect(db.saveSchedule).toHaveBeenCalledWith(1, expect.objectContaining({ year: 2026, month: 8 }));
+  });
+
+  it("zorunlu gece ataması bulunan taslak için yönetici onayı ister", async () => {
+    const plan = generateSchedule({ year: 2026, month: 8, staff, unavailable: [] });
+    plan.days[0].fallbackNight = true;
+    db.listStaff.mockResolvedValue(staff);
+    db.listUnavailabilities.mockResolvedValue([]);
+    db.listSpecialDays.mockResolvedValue([]);
+    const caller = appRouter.createCaller(context());
+    await expect(caller.schedule.save({ plan })).rejects.toThrow("yönetici onayı");
+    db.saveSchedule.mockImplementation(async (_userId: number, savedPlan: unknown) => ({ plan: savedPlan }));
+    const approved = await caller.schedule.save({ plan: { ...plan, forcedAssignmentsApproved: true } });
+    expect(approved.plan.forcedAssignmentsApproved).toBe(true);
   });
 
   it("döneme ait sürümleri listeler ve seçilen sürümü geri yükler", async () => {
