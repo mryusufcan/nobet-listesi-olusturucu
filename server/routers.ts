@@ -68,7 +68,7 @@ export const appRouter = router({
     generate: protectedProcedure.input(periodSchema).mutation(async ({ ctx, input }) => {
       const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.year, input.month), listSpecialDays(ctx.user.id, input.year, input.month)]);
       const plan = generateSchedule({ year: input.year, month: input.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays });
-      return saveSchedule(ctx.user.id, plan);
+      return { plan };
     }),
     complete: protectedProcedure.input(z.object({ plan: z.custom<SchedulePlan>() })).mutation(async ({ ctx, input }) => {
       const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.plan.year, input.plan.month), listSpecialDays(ctx.user.id, input.plan.year, input.plan.month)]);
@@ -78,9 +78,6 @@ export const appRouter = router({
     save: protectedProcedure.input(z.object({ plan: z.custom<SchedulePlan>() })).mutation(async ({ ctx, input }) => {
       const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.plan.year, input.plan.month), listSpecialDays(ctx.user.id, input.plan.year, input.plan.month)]);
       const plan = { ...input.plan, issues: validateSchedule(input.plan, people, unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays) };
-      if (plan.issues.some(issue => issue.level === "error")) {
-        throw new Error("Çizelge kaydedilemedi: kritik vardiya kuralı ihlalleri düzeltilmelidir.");
-      }
       return saveSchedule(ctx.user.id, plan);
     }),
     export: protectedProcedure.input(periodSchema).mutation(async ({ ctx, input }) => {

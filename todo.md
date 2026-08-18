@@ -56,3 +56,8 @@
 - [x] Mamografi notu ve haftalık rotasyon davranışlarını birim testleriyle doğrulama.
 - [x] Personel havuzu, sabit planlama kuralları ve planlama durumu bölümlerini ayrı bir yönetim sekmesine taşıma.
 - [x] Yeni yönetim sekmesine erişim ve taşınan personel/izin işlemlerini doğrulama.
+- [x] Çizelge kaydetmeyi engelleyen kritik kural ihlallerini kullanıcıya tarih ve neden bazında gösterme.
+- [x] Kaydetme hatası akışını test edip kontrol noktası oluşturma.
+- [x] Liste oluştur komutunun mevcut kaydı değiştirmeden yeni bir çizelge taslağı üretmesini sağlama.
+- [x] Kaydetme işlemini yalnızca kullanıcının açık kaydetme eyleminde kalıcılaştırma ve doğrulama notlarını görünür tutma.
+- [x] Yeni taslak üretme ve kaydetme akışlarını test edip kontrol noktası oluşturma.
