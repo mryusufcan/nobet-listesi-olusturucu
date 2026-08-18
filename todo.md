@@ -69,3 +69,6 @@
 - [x] Taslağı kaydet düğmesini çizelge başlığında görünür ve erişilebilir hale getirme.
 - [x] Eski “Değişiklikleri kaydet” ifadelerini “Taslağı kaydet” eylem adıyla güncelleme.
 - [x] Denge raporu grafiklerinde eksen, sütun ve açıklama öğelerinin üst üste binmesini önleme.
+- [x] Planlama başlığındaki Liste oluştur düğmesini farklı yeni taslak üretecek seed akışına bağlama.
+- [x] Yeni liste oluşturulduğunda eski çizelge atamalarını taşımadan yeni taslağı ekranda gösterme.
+- [x] Yeni taslak üretiminin mevcut listeyi kalıcı olarak değiştirmediğini test edip doğrulama.

@@ -67,9 +67,9 @@ export const appRouter = router({
     }),
     versions: protectedProcedure.input(periodSchema).query(({ ctx, input }) => listScheduleVersions(ctx.user.id, input.year, input.month)),
     restoreVersion: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => restoreScheduleVersion(ctx.user.id, input.id)),
-    generate: protectedProcedure.input(periodSchema).mutation(async ({ ctx, input }) => {
+    generate: protectedProcedure.input(periodSchema.extend({ seed: z.number().int().optional() })).mutation(async ({ ctx, input }) => {
       const [people, unavailable, specialDays] = await Promise.all([listStaff(ctx.user.id), listUnavailabilities(ctx.user.id, input.year, input.month), listSpecialDays(ctx.user.id, input.year, input.month)]);
-      const plan = generateSchedule({ year: input.year, month: input.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays });
+      const plan = generateSchedule({ year: input.year, month: input.month, staff: people, unavailable: unavailable.map(item => ({ staffId: item.staffId, date: item.date })), specialDays, seed: input.seed ?? Date.now() });
       return { plan };
     }),
     complete: protectedProcedure.input(z.object({ plan: z.custom<SchedulePlan>() })).mutation(async ({ ctx, input }) => {

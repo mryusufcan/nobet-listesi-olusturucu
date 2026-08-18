@@ -40,6 +40,18 @@ describe("schedule generate ve save", () => {
     expect(db.saveSchedule).not.toHaveBeenCalled();
   });
 
+  it("farklı yeni liste çağrılarında farklı taslak döndürür ve mevcut kaydı değiştirmez", async () => {
+    db.listStaff.mockResolvedValue(staff);
+    db.listUnavailabilities.mockResolvedValue([]);
+    db.listSpecialDays.mockResolvedValue([]);
+    db.saveSchedule.mockClear();
+    const caller = appRouter.createCaller(context());
+    const first = await caller.schedule.generate({ year: 2026, month: 8, seed: 101 });
+    const second = await caller.schedule.generate({ year: 2026, month: 8, seed: 202 });
+    expect(second.plan.days).not.toEqual(first.plan.days);
+    expect(db.saveSchedule).not.toHaveBeenCalled();
+  });
+
   it("kritik doğrulama notları bulunan taslağı hata fırlatmadan kaydeder", async () => {
     const plan = generateSchedule({ year: 2026, month: 8, staff, unavailable: [] });
     plan.days[0].night = null;

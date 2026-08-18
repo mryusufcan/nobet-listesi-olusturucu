@@ -152,6 +152,12 @@ function decrementCount(counts: Map<number, Counts>, id: number, shift: "morning
   value[shift] -= 1;
 }
 
+function seededTieBreak(seed: number, key: string) {
+  let value = seed >>> 0;
+  for (let index = 0; index < key.length; index += 1) value = Math.imul(value ^ key.charCodeAt(index), 16777619) >>> 0;
+  return value % 84;
+}
+
 export function generateSchedule(input: {
   year: number;
   month: number;
@@ -159,6 +165,7 @@ export function generateSchedule(input: {
   unavailable: Array<{ staffId: number; date: string }>;
   specialDays?: SpecialDayTemplate[];
   lockedPlan?: Pick<SchedulePlan, "days">;
+  seed?: number;
 }): SchedulePlan {
   const issues: RuleIssue[] = [];
   const staff = input.staff.filter(item => item.active);
@@ -215,7 +222,8 @@ export function generateSchedule(input: {
       const week = weekly.get(item.id) ?? 0;
       const rotationKey = `${item.id}:${weekday}:${shift}:${equipment ?? "genel"}`;
       const repetition = recurringAssignments.get(rotationKey) ?? 0;
-      return baseline * 100 + specific * 24 + week * 7 + repetition * 340 + item.name.localeCompare("", "tr");
+      const tieBreakKey = `${item.id}:${date}:${shift}:${equipment ?? "genel"}`;
+      return baseline * 100 + specific * 24 + week * 7 + repetition * 340 + seededTieBreak(input.seed ?? 0, tieBreakKey);
     };
 
     const assign = (person: StaffForSchedule, shift: "morning" | "evening" | "night", equipment?: Equipment) => {

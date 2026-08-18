@@ -51,6 +51,15 @@ describe("nöbet algoritması", () => {
     expect(new Set(mondayMamoStaff).size).toBeGreaterThan(1);
   });
 
+  it("farklı yeni liste üretimlerinde aynı girdiyi farklı dengeli taslaklara dönüştürür", () => {
+    const firstPlan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [], seed: 101 });
+    const secondPlan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [], seed: 202 });
+    const firstAssignments = firstPlan.days.map(day => [day.morning.MR, day.morning.BT, day.morning["RÖNT-PORT"], day.morning["RÖNT-MAMO"], ...day.evening, day.night]);
+    const secondAssignments = secondPlan.days.map(day => [day.morning.MR, day.morning.BT, day.morning["RÖNT-PORT"], day.morning["RÖNT-MAMO"], ...day.evening, day.night]);
+    expect(secondAssignments).not.toEqual(firstAssignments);
+    expect(validateSchedule(secondPlan, people, []).filter(issue => issue.level === "error")).toHaveLength(0);
+  });
+
   it("aynı personelin aynı gün birden fazla vardiyaya yazılmasını hata olarak bildirir", () => {
     const plan = generateSchedule({ year: 2026, month: 8, staff: people, unavailable: [] });
     plan.days[0].evening[0] = plan.days[0].morning.MR;
